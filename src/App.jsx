@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // ─── Palette Vert forêt & Ocre africain ─────────────────────────────────────
 const C = {
@@ -1197,7 +1197,7 @@ const StaffCard = ({ s, onEdit, onDelete }) => (
   </div>
 );
 
-function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setCharges, sitesList }) {
+function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setCharges, sitesList, token }) {
   const [subTab, setSubTab] = useState("dashboard_rh");
   const emptyStaff = { name:"", role:"", site:"", salary:"", startDate:"", status:"Actif", phone:"", cniNum:"", cniUrl:"", photoUrl:"", doc1Url:"", doc1Label:"", doc2Url:"", doc2Label:"", notes:"" };
   const [sForm, setSForm] = useState(emptyStaff);
@@ -1315,11 +1315,27 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
               <Input label="Téléphone" value={sForm.phone} onChange={v=>setSForm({...sForm,phone:v})} />
               <Input label="Statut" value={sForm.status} onChange={v=>setSForm({...sForm,status:v})} options={["Actif","Congé","Suspendu","Parti"]} />
               <Input label="Numéro CNI" value={sForm.cniNum} onChange={v=>setSForm({...sForm,cniNum:v})} />
-              <Input label="Lien photo (URL)" value={sForm.photoUrl} onChange={v=>setSForm({...sForm,photoUrl:v})} />
-              <Input label="Lien scan CNI (URL)" value={sForm.cniUrl} onChange={v=>setSForm({...sForm,cniUrl:v})} />
-              <Input label="Lien document 1 (URL)" value={sForm.doc1Url} onChange={v=>setSForm({...sForm,doc1Url:v})} />
+              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                <label style={{ fontSize:12, fontWeight:600, color:C.muted, fontFamily:FONT }}>Photo (depuis téléphone/ordinateur)</label>
+                <FileUpload folder="staff/photos" token={token} accept="image/*" currentUrl={sForm.photoUrl}
+                  onUploaded={(url) => setSForm(f => ({...f, photoUrl:url}))} />
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                <label style={{ fontSize:12, fontWeight:600, color:C.muted, fontFamily:FONT }}>Scan CNI (photo ou PDF)</label>
+                <FileUpload folder="staff/cni" token={token} accept="image/*,.pdf" currentUrl={sForm.cniUrl}
+                  onUploaded={(url) => setSForm(f => ({...f, cniUrl:url}))} />
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                <label style={{ fontSize:12, fontWeight:600, color:C.muted, fontFamily:FONT }}>Document 1 (contrat, attestation...)</label>
+                <FileUpload folder="staff/docs" token={token} accept="*" currentUrl={sForm.doc1Url}
+                  onUploaded={(url, name) => setSForm(f => ({...f, doc1Url:url, doc1Label:name||f.doc1Label||"Document 1"}))} />
+              </div>
               <Input label="Libellé document 1" value={sForm.doc1Label} onChange={v=>setSForm({...sForm,doc1Label:v})} />
-              <Input label="Lien document 2 (URL)" value={sForm.doc2Url} onChange={v=>setSForm({...sForm,doc2Url:v})} />
+              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                <label style={{ fontSize:12, fontWeight:600, color:C.muted, fontFamily:FONT }}>Document 2</label>
+                <FileUpload folder="staff/docs" token={token} accept="*" currentUrl={sForm.doc2Url}
+                  onUploaded={(url, name) => setSForm(f => ({...f, doc2Url:url, doc2Label:name||f.doc2Label||"Document 2"}))} />
+              </div>
               <Input label="Libellé document 2" value={sForm.doc2Label} onChange={v=>setSForm({...sForm,doc2Label:v})} />
               <div style={{ gridColumn:"1/-1" }}>
                 <Input label="Notes" value={sForm.notes} onChange={v=>setSForm({...sForm,notes:v})} />
@@ -1544,7 +1560,7 @@ const initialStockMoves = [
   { id:1, date:"2024-02-15", assetId:3, assetRef:"INT-001", type:"Sortie", qty:50, unit:"kg", site:"Site A", operator:"Paul Etoga", reason:"Application parcelle Hass", notes:"" },
 ];
 
-function AssetsModule({ sitesList, staff }) {
+function AssetsModule({ sitesList, staff, token }) {
   const [assets, setAssets]         = useState(()=>loadLS("vs_assets", initialAssets));
   const [stockMoves, setStockMoves] = useState(()=>loadLS("vs_stock_moves", initialStockMoves));
   const [subTab, setSubTab]         = useState("inventory");
@@ -1672,7 +1688,12 @@ function AssetsModule({ sitesList, staff }) {
               <Input label="Responsable / Affecté à" value={form.responsible} onChange={v=>setForm({...form,responsible:v})}
                 optObjects={[{value:"",label:"-- Choisir --"},...activeStaff.map(s=>({value:s.name,label:`${s.name} (${s.role})`})),{value:"Autre",label:"Autre"}]} />
               <Input label="Date dernier inventaire" type="date" value={form.lastInventory} onChange={v=>setForm({...form,lastInventory:v})} />
-              <Input label="Lien pièce jointe (URL facture...)" value={form.docUrl} onChange={v=>setForm({...form,docUrl:v})} />
+              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                <label style={{ fontSize:12, fontWeight:600, color:C.muted, fontFamily:FONT }}>Pièce jointe (facture, photo...)</label>
+                <FileUpload folder="actifs" token={token} accept="*" currentUrl={form.docUrl}
+                  onUploaded={(url, name) => setForm(f => ({...f, docUrl:url, docName:name||"Document"}))} />
+                {form.docUrl && <div style={{ fontSize:11, color:C.green, fontFamily:FONT }}>✅ {form.docName||"Fichier joint"}</div>}
+              </div>
               <div style={{ gridColumn:"1/-1" }}>
                 <Input label="Commentaires" value={form.notes} onChange={v=>setForm({...form,notes:v})} />
               </div>
@@ -2438,8 +2459,417 @@ function saveLS(key, val) {
 }
 
 // ─── Supabase ─────────────────────────────────────────────────────────────────
+
+// ─── Supabase Config ──────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://ftlkhqwtlrxyolfwhdyq.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0bGtocXd0bHJ4eW9sZndoZHlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NjUwMTgsImV4cCI6MjA5NTQ0MTAxOH0.KUpVjPE9HhHjWwFfj0p-jsdFQgIKXxi_G3X9YathOaQ";
+
+// ─── Auth API ─────────────────────────────────────────────────────────────────
+const Auth = {
+  signIn: async (email, password) => {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error_description || data.msg || "Erreur de connexion");
+    return data; // { access_token, refresh_token, user }
+  },
+
+  signOut: async (token) => {
+    await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}` },
+    });
+  },
+
+  getUser: async (token) => {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    return res.json();
+  },
+
+  inviteUser: async (email, token) => {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) throw new Error("Erreur invitation");
+    return res.json();
+  },
+
+  resetPassword: async (email) => {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    return res.ok;
+  },
+};
+
+// ─── Storage API ──────────────────────────────────────────────────────────────
+const BUCKET = "vegesoft-docs";
+
+const Storage = {
+  upload: async (file, path, token) => {
+    const formData = new FormData();
+    formData.append("", file);
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}` },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Upload échoué: ${err}`);
+    }
+    return `${SUPABASE_URL}/storage/v1/object/authenticated/${BUCKET}/${path}`;
+  },
+
+  getUrl: (path, token) =>
+    `${SUPABASE_URL}/storage/v1/object/authenticated/${BUCKET}/${path}`,
+
+  list: async (prefix, token) => {
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/list/${BUCKET}`, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ prefix, limit: 100 }),
+    });
+    return res.ok ? res.json() : [];
+  },
+
+  delete: async (paths, token) => {
+    await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}`, {
+      method: "DELETE",
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ prefixes: paths }),
+    });
+  },
+};
+
+// ─── Composant FileUpload ─────────────────────────────────────────────────────
+function FileUpload({ label, folder, token, onUploaded, accept = "*", currentUrl, small }) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const inputRef = useRef(null);
+
+  const handle = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) { setError("Fichier trop grand (max 20 Mo)"); return; }
+    setUploading(true); setError("");
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${folder}/${Date.now()}_${Math.random().toString(36).substr(2,6)}.${ext}`;
+      const url = await Storage.upload(file, path, token);
+      onUploaded(url, file.name);
+    } catch (err) {
+      setError("Erreur upload: " + err.message);
+    }
+    setUploading(false);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {label && <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, fontFamily: FONT }}>{label}</label>}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <button
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          style={{
+            background: uploading ? C.sand : C.ocre, color: C.white, border: "none",
+            borderRadius: 8, padding: small ? "6px 12px" : "8px 16px",
+            fontSize: small ? 11 : 12, fontWeight: 600, cursor: uploading ? "default" : "pointer",
+            fontFamily: FONT, display: "flex", alignItems: "center", gap: 6,
+          }}
+        >
+          {uploading ? "⏳ Envoi..." : "📎 Choisir un fichier"}
+        </button>
+        {currentUrl && (
+          <a href={currentUrl} target="_blank" rel="noreferrer"
+            style={{ fontSize: 12, color: C.green, fontWeight: 600, textDecoration: "none", fontFamily: FONT }}>
+            👁️ Voir le fichier
+          </a>
+        )}
+        <input ref={inputRef} type="file" accept={accept} onChange={handle} style={{ display: "none" }} />
+      </div>
+      {error && <div style={{ fontSize: 11, color: C.danger, fontFamily: FONT }}>{error}</div>}
+    </div>
+  );
+}
+
+// ─── Composant DocumentsList ──────────────────────────────────────────────────
+function DocumentsList({ docs, onDelete }) {
+  if (!docs || docs.length === 0) return (
+    <div style={{ fontFamily: FONT, fontSize: 12, color: C.muted, fontStyle: "italic" }}>Aucun document joint</div>
+  );
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      {docs.map((d, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, background: C.cream, border: `1px solid ${C.sand}`, borderRadius: 8, padding: "5px 10px" }}>
+          <span style={{ fontSize: 16 }}>
+            {d.name?.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? "🖼️" : d.name?.match(/\.pdf$/i) ? "📄" : "📎"}
+          </span>
+          <a href={d.url} target="_blank" rel="noreferrer"
+            style={{ fontSize: 12, color: C.forest, fontWeight: 600, textDecoration: "none", fontFamily: FONT, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {d.name || "Document"}
+          </a>
+          {onDelete && (
+            <button onClick={() => onDelete(i)} style={{ background: "none", border: "none", color: C.danger, cursor: "pointer", fontSize: 14, padding: 0 }}>×</button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Page de Connexion ────────────────────────────────────────────────────────
+function LoginPage({ onLogin }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [resetMode, setResetMode] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+
+  const handleLogin = async () => {
+    if (!email || !password) { setError("Email et mot de passe requis"); return; }
+    setLoading(true); setError("");
+    try {
+      const data = await Auth.signIn(email, password);
+      localStorage.setItem("vs_token", data.access_token);
+      localStorage.setItem("vs_refresh", data.refresh_token);
+      localStorage.setItem("vs_user", JSON.stringify(data.user));
+      onLogin(data.access_token, data.user);
+    } catch (err) {
+      setError(err.message);
+    }
+    setLoading(false);
+  };
+
+  const handleReset = async () => {
+    if (!email) { setError("Entrez votre email"); return; }
+    setLoading(true);
+    const ok = await Auth.resetPassword(email);
+    setLoading(false);
+    if (ok) setResetSent(true);
+    else setError("Erreur lors de l'envoi");
+  };
+
+  return (
+    <div style={{
+      minHeight: "100vh", background: `linear-gradient(135deg, ${C.forest} 0%, ${C.green} 50%, ${C.ocre} 100%)`,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+      fontFamily: FONT,
+    }}>
+      <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+      <div style={{ background: C.white, borderRadius: 20, padding: 40, maxWidth: 420, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+        {/* Logo */}
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 48, marginBottom: 8 }}>🌿</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: C.forest, letterSpacing: -1 }}>Vegesoft</div>
+          <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Gestion de vergers tropicaux</div>
+        </div>
+
+        {resetSent ? (
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📧</div>
+            <div style={{ fontFamily: FONT, fontWeight: 700, color: C.forest, marginBottom: 8 }}>Email envoyé !</div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>Vérifiez votre boîte mail pour réinitialiser votre mot de passe.</div>
+            <Btn onClick={() => { setResetMode(false); setResetSent(false); }}>Retour à la connexion</Btn>
+          </div>
+        ) : resetMode ? (
+          <>
+            <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 16, color: C.forest, marginBottom: 20 }}>🔑 Réinitialiser le mot de passe</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <Input label="Votre email" type="email" value={email} onChange={setEmail} />
+              {error && <div style={{ color: C.danger, fontSize: 13, fontFamily: FONT }}>{error}</div>}
+              <Btn onClick={handleReset}>{loading ? "Envoi..." : "Envoyer le lien"}</Btn>
+              <button onClick={() => setResetMode(false)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT }}>← Retour</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 16, color: C.forest, marginBottom: 20 }}>Connexion</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <Input label="Email" type="email" value={email} onChange={setEmail} />
+              <Input label="Mot de passe" type="password" value={password} onChange={setPassword} />
+              {error && (
+                <div style={{ background: "#FEF2F2", border: `1px solid #FECACA`, borderRadius: 8, padding: "10px 14px", color: C.danger, fontSize: 13, fontFamily: FONT }}>
+                  ⚠️ {error}
+                </div>
+              )}
+              <button
+                onClick={handleLogin}
+                disabled={loading}
+                onKeyDown={e => e.key === "Enter" && handleLogin()}
+                style={{
+                  background: loading ? C.sand : `linear-gradient(135deg, ${C.forest}, ${C.green})`,
+                  color: loading ? C.muted : C.white, border: "none", borderRadius: 12,
+                  padding: "14px 20px", fontSize: 15, fontWeight: 700, cursor: loading ? "default" : "pointer",
+                  fontFamily: FONT, width: "100%", transition: "all 0.2s",
+                }}
+              >
+                {loading ? "⏳ Connexion..." : "Se connecter →"}
+              </button>
+              <button onClick={() => setResetMode(true)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, textDecoration: "underline" }}>
+                Mot de passe oublié ?
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Page Gestion Utilisateurs ────────────────────────────────────────────────
+function UsersModule({ token, currentUser }) {
+  const [appUsers, setAppUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteRole, setInviteRole] = useState("Lecteur");
+  const [inviteSite, setInviteSite] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    fetch(`${SUPABASE_URL}/rest/v1/app_users?order=created_at.desc`, {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}` },
+    }).then(r => r.json()).then(data => { setAppUsers(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const invite = async () => {
+    if (!inviteEmail) return;
+    setInviting(true); setMsg("");
+    try {
+      await Auth.inviteUser(inviteEmail, token);
+      // Save in app_users table
+      await fetch(`${SUPABASE_URL}/rest/v1/app_users`, {
+        method: "POST",
+        headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "Prefer": "return=representation" },
+        body: JSON.stringify({ email: inviteEmail, full_name: inviteName, role: inviteRole, site: inviteSite }),
+      });
+      setMsg(`✅ Invitation envoyée à ${inviteEmail}`);
+      setInviteEmail(""); setInviteName(""); setInviteRole("Lecteur"); setInviteSite("");
+    } catch (err) {
+      setMsg("❌ " + err.message);
+    }
+    setInviting(false);
+  };
+
+  const updateUserRole = async (userId, newRole) => {
+    await fetch(`${SUPABASE_URL}/rest/v1/app_users?id=eq.${userId}`, {
+      method: "PATCH",
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ role: newRole }),
+    });
+    setAppUsers(appUsers.map(u => u.id === userId ? { ...u, role: newRole } : u));
+  };
+
+  const toggleActive = async (userId, active) => {
+    await fetch(`${SUPABASE_URL}/rest/v1/app_users?id=eq.${userId}`, {
+      method: "PATCH",
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ active }),
+    });
+    setAppUsers(appUsers.map(u => u.id === userId ? { ...u, active } : u));
+  };
+
+  const USER_ROLES = ["Administrateur", "Gestionnaire", "Chef de site", "Comptable", "Lecteur"];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12 }}>
+        <StatCard icon="👥" label="Utilisateurs" value={appUsers.length} sub="comptes créés" color="#DBEAFE" />
+        <StatCard icon="✅" label="Actifs" value={appUsers.filter(u => u.active).length} color="#D1FAE5" />
+        <StatCard icon="🔐" label="Admins" value={appUsers.filter(u => u.role === "Administrateur").length} color="#FEF9C3" />
+      </div>
+
+      {/* Inviter un utilisateur */}
+      <Card>
+        <h3 style={sectionTitle}>➕ Inviter un membre de l'équipe</h3>
+        <div style={{ marginBottom: 10, padding: "8px 12px", background: "#EFF6FF", borderRadius: 8, fontSize: 12, fontFamily: FONT, color: "#1E40AF" }}>
+          💡 L'utilisateur recevra un email avec un lien pour créer son mot de passe et accéder à l'application.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
+          <Input label="Email" type="email" value={inviteEmail} onChange={setInviteEmail} />
+          <Input label="Nom complet" value={inviteName} onChange={setInviteName} />
+          <Input label="Rôle dans l'application" value={inviteRole} onChange={setInviteRole} options={USER_ROLES} />
+          <Input label="Site affecté (optionnel)" value={inviteSite} onChange={setInviteSite} />
+        </div>
+        {msg && (
+          <div style={{ marginTop: 10, padding: "8px 14px", background: msg.startsWith("✅") ? "#D1FAE5" : "#FEE2E2", borderRadius: 8, fontFamily: FONT, fontSize: 13, color: msg.startsWith("✅") ? "#065F46" : C.danger }}>
+            {msg}
+          </div>
+        )}
+        <div style={{ marginTop: 14 }}>
+          <Btn onClick={invite} disabled={inviting}>{inviting ? "⏳ Envoi..." : "📧 Envoyer l'invitation"}</Btn>
+        </div>
+      </Card>
+
+      {/* Liste utilisateurs */}
+      <Card>
+        <h3 style={sectionTitle}>👥 Membres de l'équipe</h3>
+        {loading ? (
+          <div style={{ textAlign: "center", padding: 30, color: C.muted, fontFamily: FONT }}>⏳ Chargement...</div>
+        ) : appUsers.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 30, color: C.muted, fontFamily: FONT }}>
+            Aucun utilisateur enregistré. Invitez votre équipe ci-dessus.
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: C.sand }}>
+                  {["Nom","Email","Rôle","Site","Statut","Actions"].map(h => (
+                    <th key={h} style={{ padding: "9px 11px", textAlign: "left", fontWeight: 700, color: C.forest, fontFamily: FONT, fontSize: 12, whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {appUsers.map((u, i) => (
+                  <tr key={u.id} style={{ background: i % 2 === 0 ? C.white : C.cream }}>
+                    <td style={{ ...td, fontWeight: 700 }}>{u.full_name || "—"}</td>
+                    <td style={td}>{u.email}</td>
+                    <td style={td}>
+                      <select value={u.role} onChange={e => updateUserRole(u.id, e.target.value)}
+                        style={{ ...inputStyle, padding: "4px 8px", fontSize: 12, height: "auto" }}>
+                        {USER_ROLES.map(r => <option key={r}>{r}</option>)}
+                      </select>
+                    </td>
+                    <td style={td}>{u.site || "—"}</td>
+                    <td style={td}><Badge color={u.active ? "green" : "amber"}>{u.active ? "Actif" : "Inactif"}</Badge></td>
+                    <td style={td}>
+                      <Btn small variant={u.active ? "danger" : "secondary"}
+                        onClick={() => toggleActive(u.id, !u.active)}>
+                        {u.active ? "Désactiver" : "Réactiver"}
+                      </Btn>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ─── Helpers LocalStorage ─────────────────────────────────────────────────────
+}
+
+// ─── useRef import ────────────────────────────────────────────────────────────
+// (already available via React)
 
 async function sbFetch(table, method="GET", body=null, filter="") {
   const url = `${SUPABASE_URL}/rest/v1/${table}${filter}`;
@@ -3067,6 +3497,7 @@ function RemindersModule({ treatments, harvests, graftings, batches, staff }) {
   );
 }
 
+// ─── TABS (with users) ────────────────────────────────────────────────────────
 const TABS = [
   { id:"dashboard",   label:"Tableau de bord",  icon:"📊" },
   { id:"map",         label:"Carte",            icon:"🗺️" },
@@ -3083,11 +3514,76 @@ const TABS = [
   { id:"assets",      label:"Actifs & Stocks",  icon:"📦" },
   { id:"hr",          label:"RH & Charges",     icon:"👷" },
   { id:"pnl",         label:"Compte Exploit.",  icon:"📄" },
+  { id:"users",       label:"Utilisateurs",     icon:"👥" },
 ];
 
+// ─── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [tab, setTab] = useState("dashboard");
+  const [tab, setTab]           = useState("dashboard");
   const [saveStatus, setSaveStatus] = useState("");
+  const [authToken, setAuthToken]   = useState(() => localStorage.getItem("vs_token") || "");
+  const [currentUser, setCurrentUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("vs_user") || "null"); } catch { return null; }
+  });
+  const [authChecking, setAuthChecking] = useState(true);
+
+  // ── Vérification token au démarrage
+  useEffect(() => {
+    const token = localStorage.getItem("vs_token");
+    if (!token) { setAuthChecking(false); return; }
+    Auth.getUser(token).then(user => {
+      if (user) {
+        setAuthToken(token);
+        setCurrentUser(user);
+      } else {
+        localStorage.removeItem("vs_token");
+        localStorage.removeItem("vs_user");
+        setAuthToken("");
+        setCurrentUser(null);
+      }
+      setAuthChecking(false);
+    });
+  }, []);
+
+  const handleLogin = (token, user) => {
+    setAuthToken(token);
+    setCurrentUser(user);
+  };
+
+  const handleLogout = async () => {
+    await Auth.signOut(authToken);
+    localStorage.removeItem("vs_token");
+    localStorage.removeItem("vs_refresh");
+    localStorage.removeItem("vs_user");
+    setAuthToken("");
+    setCurrentUser(null);
+  };
+
+  // ── Chargement écran si vérification en cours
+  if (authChecking) {
+    return (
+      <div style={{ minHeight: "100vh", background: `linear-gradient(135deg, ${C.forest}, ${C.green})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center", color: C.white, fontFamily: FONT }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🌿</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>Vegesoft</div>
+          <div style={{ fontSize: 13, opacity: 0.7, marginTop: 8 }}>Vérification de session...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Page de connexion si non authentifié
+  if (!authToken || !currentUser) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  // ── App principale (authentifiée)
+  const sbFetchAuth = (table, method="GET", body=null, filter="") => {
+    const url = `${SUPABASE_URL}/rest/v1/${table}${filter}`;
+    const headers = { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${authToken}`, "Content-Type": "application/json", "Prefer": method==="POST"?"return=representation":method==="PATCH"?"return=representation":"" };
+    return fetch(url, { method, headers, body: body ? JSON.stringify(body) : null })
+      .then(r => { if(!r.ok) throw new Error(); return method==="DELETE"||r.status===204?[]:r.json(); });
+  };
 
   const treesDB     = useSupabaseTable("trees",          "vs_trees",    initialTrees);
   const harvestsDB  = useSupabaseTable("harvests",       "vs_harvests", initialHarvests);
@@ -3102,27 +3598,20 @@ export default function App() {
   const allLoading = [treesDB,harvestsDB,salesDB,treatsDB,nurseryDB,graftingsDB,staffDB,tempDB,chargesDB].some(d=>d.loading);
   const allSynced  = [treesDB,harvestsDB,salesDB,treatsDB,nurseryDB,graftingsDB,staffDB,tempDB,chargesDB].every(d=>d.synced);
 
-  // Espèces, sites, arbres sélectionnés → localStorage uniquement
   const [species,       setSpeciesRaw]  = useState(()=>loadLS("vs_species",      initialSpecies));
   const [sitesList,     setSitesRaw]    = useState(()=>loadLS("vs_sites_list",   initialSitesList));
   const [selectedTrees, setSelRaw]      = useState(()=>loadLS("vs_selected",     initialSelectedTrees));
 
   const flash = () => { setSaveStatus("saved"); setTimeout(()=>setSaveStatus(""),2500); };
   const setSpecies       = v => { setSpeciesRaw(v);  saveLS("vs_species",    v); flash(); };
-
-  // Ajoute une variété à une espèce depuis n'importe quel formulaire
-  const handleAddVariety = (speciesName, newVariety) => {
-    const updated = species.map(s =>
-      s.name === speciesName && !s.varieties.includes(newVariety)
-        ? { ...s, varieties: [...s.varieties, newVariety] }
-        : s
-    );
-    setSpecies(updated);
-  };
   const setSitesList     = v => { setSitesRaw(v);    saveLS("vs_sites_list", v); flash(); };
   const setSelectedTrees = v => { setSelRaw(v);      saveLS("vs_selected",   v); flash(); };
 
-  // Wrappers setState-compatible pour modules existants
+  const handleAddVariety = (speciesName, newVariety) => {
+    setSpecies(species.map(s => s.name === speciesName && !s.varieties.includes(newVariety)
+      ? { ...s, varieties: [...s.varieties, newVariety] } : s));
+  };
+
   const wrapSet = db => async valOrFn => {
     const newArr = typeof valOrFn==="function"?valOrFn(db.rows):valOrFn;
     const added   = newArr.filter(n=>!db.rows.find(o=>o.id===n.id));
@@ -3146,70 +3635,81 @@ export default function App() {
 
   return (
     <div style={{ minHeight:"100vh", background:C.cream, fontFamily:FONT }}>
-      {/* Google Fonts */}
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
       {/* Header */}
-      <div style={{ background:`linear-gradient(135deg, ${C.forest} 0%, ${C.green} 60%, ${C.ocre} 100%)`, padding:"16px 24px 0", boxShadow:"0 4px 20px rgba(0,0,0,0.15)" }}>
-        <div style={{ maxWidth:1280, margin:"0 auto" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:14 }}>
-            {/* Logo Vegesoft */}
+      <div style={{ background:`linear-gradient(135deg, ${C.forest} 0%, ${C.green} 60%, ${C.ocre} 100%)`, padding:"16px 24px 0", boxShadow:"0 4px 20px rgba(0,0,0,0.15)", position:"sticky", top:0, zIndex:100 }}>
+        <div style={{ maxWidth:1400, margin:"0 auto" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:12 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:44, height:44, borderRadius:12, background:"rgba(255,255,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, backdropFilter:"blur(4px)" }}>🌿</div>
+              <div style={{ width:40, height:40, borderRadius:10, background:"rgba(255,255,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>🌿</div>
               <div>
-                <div style={{ color:C.white, fontSize:22, fontWeight:800, letterSpacing:-0.5, fontFamily:FONT, lineHeight:1 }}>Vegesoft</div>
-                <div style={{ color:"rgba(255,255,255,0.7)", fontSize:11, fontFamily:FONT }}>Gestion de vergers tropicaux</div>
+                <div style={{ color:C.white, fontSize:20, fontWeight:800, letterSpacing:-0.5, fontFamily:FONT, lineHeight:1 }}>Vegesoft</div>
+                <div style={{ color:"rgba(255,255,255,0.6)", fontSize:10, fontFamily:FONT }}>Gestion de vergers tropicaux</div>
               </div>
             </div>
             <div style={{ flex:1 }} />
-            {/* Badge connexion */}
-            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
-              <div style={{ background:allSynced?"#D1FAE5":allLoading?"rgba(255,255,255,0.2)":"#FEF3C7", color:allSynced?"#065F46":allLoading?"rgba(255,255,255,0.9)":"#92400E", padding:"4px 12px", borderRadius:20, fontSize:11, fontWeight:700, fontFamily:FONT, transition:"all 0.4s" }}>
-                {allLoading?"⏳ Connexion...":allSynced?"☁️ Synchro OK":"⚠️ Mode local"}
+            {/* User info */}
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ textAlign:"right" }}>
+                <div style={{ color:C.white, fontSize:12, fontWeight:600, fontFamily:FONT }}>{currentUser.email}</div>
+                <div style={{
+                  background: allSynced?"#D1FAE5":allLoading?"rgba(255,255,255,0.2)":"#FEF3C7",
+                  color: allSynced?"#065F46":allLoading?"rgba(255,255,255,0.9)":"#92400E",
+                  padding:"2px 10px", borderRadius:20, fontSize:10, fontWeight:700, fontFamily:FONT,
+                }}>
+                  {allLoading?"⏳ Synchro...":allSynced?"☁️ Connecté":saveStatus==="saved"?"✅ Sauvegardé":"⚠️ Local"}
+                </div>
               </div>
-              {saveStatus==="saved"&&<div style={{ background:"#D1FAE5", color:"#065F46", padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, fontFamily:FONT }}>✅ Sauvegardé</div>}
+              <button onClick={handleLogout} style={{
+                background:"rgba(255,255,255,0.15)", color:C.white, border:"1px solid rgba(255,255,255,0.3)",
+                borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:FONT,
+              }}>🚪 Déconnexion</button>
             </div>
           </div>
           {/* Tabs */}
           <div style={{ display:"flex", gap:2, overflowX:"auto", scrollbarWidth:"none" }}>
             {TABS.map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{ background:tab===t.id?"rgba(255,255,255,0.95)":"transparent", color:tab===t.id?C.forest:"rgba(255,255,255,0.8)", border:"none", borderRadius:"8px 8px 0 0", padding:"8px 13px", fontSize:12, fontWeight:tab===t.id?700:500, cursor:"pointer", whiteSpace:"nowrap", fontFamily:FONT, transition:"all 0.15s" }}>
-                {t.icon} {t.label}
-              </button>
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{
+                background: tab===t.id?"rgba(255,255,255,0.95)":"transparent",
+                color: tab===t.id?C.forest:"rgba(255,255,255,0.75)",
+                border:"none", borderRadius:"8px 8px 0 0", padding:"8px 12px",
+                fontSize:11, fontWeight:tab===t.id?700:500, cursor:"pointer",
+                whiteSpace:"nowrap", fontFamily:FONT, transition:"all 0.15s",
+              }}>{t.icon} {t.label}</button>
             ))}
           </div>
         </div>
       </div>
 
       {/* Contenu */}
-      <div style={{ maxWidth:1280, margin:"0 auto", padding:"24px 16px" }}>
+      <div style={{ maxWidth:1400, margin:"0 auto", padding:"24px 16px" }}>
         {allLoading&&(
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, padding:60, color:C.muted }}>
             <div style={{ fontSize:36 }}>⏳</div>
             <div>
-              <div style={{ fontWeight:700, fontSize:16, fontFamily:FONT }}>Connexion à Supabase...</div>
-              <div style={{ fontSize:13, fontFamily:FONT }}>Chargement de vos données</div>
+              <div style={{ fontWeight:700, fontSize:16, fontFamily:FONT }}>Chargement des données...</div>
+              <div style={{ fontSize:13, fontFamily:FONT, color:C.muted }}>Connexion à Supabase</div>
             </div>
           </div>
         )}
         {!allLoading&&<>
+          {tab==="dashboard"  && <Dashboard     trees={treesDB.rows} harvests={harvestsDB.rows} sales={salesDB.rows} treatments={treatsDB.rows} species={species} />}
           {tab==="map"        && <MapModule      sitesList={sitesList} selectedTrees={selectedTrees} trees={treesDB.rows} species={species} />}
           {tab==="charts"     && <ChartsModule   harvests={harvestsDB.rows} sales={salesDB.rows} charges={chargesDB.rows} staff={staffDB.rows} tempWork={tempDB.rows} species={species} trees={treesDB.rows} />}
           {tab==="reminders"  && <RemindersModule treatments={treatsDB.rows} harvests={harvestsDB.rows} graftings={graftingsDB.rows} batches={nurseryDB.rows} staff={staffDB.rows} />}
-          {tab==="dashboard"  && <Dashboard     trees={treesDB.rows} harvests={harvestsDB.rows} sales={salesDB.rows} treatments={treatsDB.rows} species={species} />}
-          {tab==="sites"      && <SitesModule   sitesList={sitesList} setSitesList={setSitesList} />}
-          {tab==="species"    && <SpeciesModule  species={species} setSpecies={setSpecies} />}
-          {tab==="trees"      && <TreesModule    trees={treesDB.rows} setTrees={setTrees} species={species} sitesList={sitesList} onAddVariety={handleAddVariety} />}
+          {tab==="sites"      && <SitesModule    sitesList={sitesList} setSitesList={setSitesList} />}
+          {tab==="species"    && <SpeciesModule   species={species} setSpecies={setSpecies} />}
+          {tab==="trees"      && <TreesModule     trees={treesDB.rows} setTrees={setTrees} species={species} sitesList={sitesList} onAddVariety={handleAddVariety} />}
           {tab==="selected"   && <SelectedTreesModule selectedTrees={selectedTrees} setSelectedTrees={setSelectedTrees} sitesList={sitesList} species={species} />}
-          {tab==="nursery"    && <NurseryModule  batches={nurseryDB.rows} setBatches={setBatches} graftings={graftingsDB.rows} setGraftings={setGraftings} species={species} sitesList={sitesList} />}
-          {tab==="harvest"    && <HarvestModule  harvests={harvestsDB.rows} setHarvests={setHarvests} species={species} sitesList={sitesList} onAddVariety={handleAddVariety} />}
-          {tab==="sales"      && <SalesModule    sales={salesDB.rows} setSales={setSales} species={species} sitesList={sitesList} onAddVariety={handleAddVariety} />}
+          {tab==="nursery"    && <NurseryModule   batches={nurseryDB.rows} setBatches={setBatches} graftings={graftingsDB.rows} setGraftings={setGraftings} species={species} sitesList={sitesList} />}
+          {tab==="harvest"    && <HarvestModule   harvests={harvestsDB.rows} setHarvests={setHarvests} species={species} sitesList={sitesList} onAddVariety={handleAddVariety} />}
+          {tab==="sales"      && <SalesModule     sales={salesDB.rows} setSales={setSales} species={species} sitesList={sitesList} onAddVariety={handleAddVariety} />}
           {tab==="treatments" && <TreatmentsModule treatments={treatsDB.rows} setTreatments={setTreatments} species={species} sitesList={sitesList} staff={staffDB.rows} />}
-          {tab==="assets"      && <AssetsModule sitesList={sitesList} staff={staffDB.rows} />}
-          {tab==="hr"         && <HRChargesModule staff={staffDB.rows} setStaff={setStaff} tempWork={tempDB.rows} setTempWork={setTempWork} charges={chargesDB.rows} setCharges={setCharges} sitesList={sitesList} />}
-          {tab==="pnl"        && <PnLModule      sales={salesDB.rows} harvests={harvestsDB.rows} staff={staffDB.rows} tempWork={tempDB.rows} charges={chargesDB.rows} />}
+          {tab==="assets"     && <AssetsModule    sitesList={sitesList} staff={staffDB.rows} token={authToken} />}
+          {tab==="hr"         && <HRChargesModule staff={staffDB.rows} setStaff={setStaff} tempWork={tempDB.rows} setTempWork={setTempWork} charges={chargesDB.rows} setCharges={setCharges} sitesList={sitesList} token={authToken} />}
+          {tab==="pnl"        && <PnLModule       sales={salesDB.rows} harvests={harvestsDB.rows} staff={staffDB.rows} tempWork={tempDB.rows} charges={chargesDB.rows} />}
+          {tab==="users"      && <UsersModule     token={authToken} currentUser={currentUser} />}
         </>}
       </div>
     </div>
