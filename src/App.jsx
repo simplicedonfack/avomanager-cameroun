@@ -2724,6 +2724,10 @@ function LoginPage({ onLogin }) {
             </div>
           </>
         )}
+        {/* Copyright sur login */}
+        <div style={{ textAlign:"center", marginTop:24, fontSize:10, color:"rgba(255,255,255,0.45)", fontFamily:FONT }}>
+          © 2026 Vegesoft · Simplice DONFACK KEMGMO
+        </div>
       </div>
     </div>
   );
@@ -2866,10 +2870,7 @@ function UsersModule({ token, currentUser }) {
 }
 
 // ─── Helpers LocalStorage ─────────────────────────────────────────────────────
-}
 
-// ─── useRef import ────────────────────────────────────────────────────────────
-// (already available via React)
 
 async function sbFetch(table, method="GET", body=null, filter="") {
   const url = `${SUPABASE_URL}/rest/v1/${table}${filter}`;
@@ -3711,6 +3712,15 @@ export default function App() {
           {tab==="pnl"        && <PnLModule       sales={salesDB.rows} harvests={harvestsDB.rows} staff={staffDB.rows} tempWork={tempDB.rows} charges={chargesDB.rows} />}
           {tab==="users"      && <UsersModule     token={authToken} currentUser={currentUser} />}
         </>}
+      </div>
+
+      {/* Copyright */}
+      <div style={{ textAlign:"center", padding:"14px 20px", borderTop:`1px solid ${C.sand}`, marginTop:20 }}>
+        <div style={{ fontSize:10, color:C.muted, fontFamily:FONT, lineHeight:1.6 }}>
+          {"© 2026 Vegesoft — Développé le 28 mai 2026 par "}
+          <span style={{ color:C.forest, fontWeight:600 }}>{"Simplice DONFACK KEMGMO"}</span>
+          {" · Tous droits réservés"}
+        </div>
       </div>
     </div>
   );
