@@ -1155,8 +1155,6 @@ function NurseryModule({ batches, setBatches, graftings, setGraftings, species, 
 const ROLES = ["Chef de site","Greffeur","Responsable pépinière","Chauffeur","Magasinier","Comptable","Ouvrière agricole","Ouvrier agricole","Gardien","Autre"];
 const TASKS_TEMP = ["Récolte","Désherbage","Application engrais","Taille","Greffage","Semis pépinière","Irrigation manuelle","Transport","Conditionnement","Autre"];
 // ─── MODULE : RH & Charges (enrichi) ─────────────────────────────────────────
-const ROLES = ["Chef de site","Greffeur","Responsable pépinière","Chauffeur","Magasinier","Comptable","Ouvrière agricole","Ouvrier agricole","Gardien","Autre"];
-const TASKS_TEMP = ["Récolte","Désherbage","Application engrais","Taille","Greffage","Semis pépinière","Irrigation manuelle","Transport","Conditionnement","Autre"];
 
 const StaffCard = ({ s, onEdit, onDelete }) => (
   <div style={{ background:C.white, borderRadius:14, padding:16, boxShadow:"0 2px 8px rgba(0,0,0,0.06)", borderTop:`4px solid ${s.status==="Actif"?C.green:C.amber}` }}>
