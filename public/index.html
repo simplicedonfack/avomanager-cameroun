@@ -2,16 +2,34 @@
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#1B4332" />
-    <meta name="description" content="AvoManager Cameroun - Gestion d'exploitations avocatières" />
-    <title>🥑 AvoManager Cameroun</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#1A3A2A" />
+    <meta name="description" content="Vegesoft — Gestion de vergers fruitiers tropicaux" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Vegesoft" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <title>🌿 Vegesoft</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: Georgia, serif; background: #FEFAE0; }
+      body { font-family: 'Poppins', 'Segoe UI', Arial, sans-serif; background: #FBF5E6; }
+      /* Scrollbar custom */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: #F0D8A8; }
+      ::-webkit-scrollbar-thumb { background: #4E8B62; border-radius: 3px; }
     </style>
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Register Service Worker for PWA
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js')
+            .then(reg => console.log('SW registered:', reg.scope))
+            .catch(err => console.log('SW error:', err));
+        });
+      }
+    </script>
   </body>
 </html>
