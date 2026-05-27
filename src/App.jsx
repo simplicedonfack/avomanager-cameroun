@@ -21,6 +21,14 @@ const C = {
 // ─── Police Google Fonts (Poppins) ───────────────────────────────────────────
 const FONT = "'Poppins', 'Segoe UI', Arial, sans-serif";
 
+function loadLS(key, fallback) {
+  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fallback; } catch { return fallback; }
+}
+function saveLS(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+}
+
+
 // ─── Espèces fruitières par défaut ───────────────────────────────────────────
 const initialSpecies = [
   { id: 1, name: "Avocatier",   emoji: "🥑", color: "#2E5E3E", varieties: ["Hass","Fuerte","Polog","Both 7","Locale"] },
@@ -2451,13 +2459,6 @@ function PnLModule({ sales, harvests, staff, tempWork, charges }) {
 }
 
 // ─── LocalStorage ─────────────────────────────────────────────────────────────
-function loadLS(key, fallback) {
-  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fallback; } catch { return fallback; }
-}
-function saveLS(key, val) {
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
-}
-
 // ─── Supabase ─────────────────────────────────────────────────────────────────
 
 // ─── Supabase Config ──────────────────────────────────────────────────────────
@@ -3522,7 +3523,9 @@ const TABS = [
 export default function App() {
   const [tab, setTab]           = useState("dashboard");
   const [saveStatus, setSaveStatus] = useState("");
-  const [authToken, setAuthToken]   = useState(() => localStorage.getItem("vs_token") || "");
+  const [authToken, setAuthToken]   = useState(() => {
+    try { return localStorage.getItem("vs_token") || ""; } catch { return ""; }
+  });
   const [currentUser, setCurrentUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem("vs_user") || "null"); } catch { return null; }
   });
