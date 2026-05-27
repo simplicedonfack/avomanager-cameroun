@@ -15,10 +15,103 @@ const COLORS = {
   white: "#FFFFFF",
 };
 
-const VARIETIES = ["Hass", "Fuerte", "Polog", "Both 7", "Locale"];
-const SITES = ["Site A", "Site B", "Site C"];
 
-// ─── Données initiales ───────────────────────────────────────────────────────
+const VARIETIES = ["Hass", "Fuerte", "Polog", "Both 7", "Locale"];
+
+// ─── Sites enrichis (code + nom + GPS) ──────────────────────────────────────
+const initialSitesList = [
+  { code: "Site A", name: "Plantation Mbankomo",  latDec: 3.8480,  lngDec: 11.5021, notes: "Site principal, zone basse" },
+  { code: "Site B", name: "Plantation Ngousso",   latDec: 3.8712,  lngDec: 11.5234, notes: "Terrain en pente douce" },
+  { code: "Site C", name: "Plantation Olembe",    latDec: 3.9102,  lngDec: 11.4987, notes: "Zone haute, bonne exposition" },
+];
+
+// ─── Utilitaires GPS ─────────────────────────────────────────────────────────
+function decToDMS(deg, isLat) {
+  const abs = Math.abs(deg);
+  const d = Math.floor(abs);
+  const mFull = (abs - d) * 60;
+  const m = Math.floor(mFull);
+  const s = ((mFull - m) * 60).toFixed(1);
+  const dir = isLat ? (deg >= 0 ? "N" : "S") : (deg >= 0 ? "E" : "W");
+  return `${d}°${m}'${s}"${dir}`;
+}
+function dmsToDec(dms) {
+  // Accepte formats: 3°50'52.9"N ou 3 50 52.9 N
+  try {
+    const clean = dms.replace(/[°'"]/g, " ").trim();
+    const parts = clean.split(/\s+/);
+    const d = parseFloat(parts[0]);
+    const m = parseFloat(parts[1]) || 0;
+    const s = parseFloat(parts[2]) || 0;
+    const dir = parts[3] || parts[parts.length - 1];
+    let dec = d + m / 60 + s / 3600;
+    if (dir === "S" || dir === "W") dec = -dec;
+    return isNaN(dec) ? null : +dec.toFixed(6);
+  } catch { return null; }
+}
+function formatGPS(latDec, lngDec) {
+  if (!latDec || !lngDec) return "—";
+  return `${latDec.toFixed(6)}, ${lngDec.toFixed(6)}`;
+}
+function formatDMS(latDec, lngDec) {
+  if (!latDec || !lngDec) return "—";
+  return `${decToDMS(latDec, true)} ${decToDMS(lngDec, false)}`;
+}
+
+// ─── Export helpers ───────────────────────────────────────────────────────────
+function exportCSV(filename, headers, rows) {
+  const lines = [headers.join(";"), ...rows.map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(";"))];
+  const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename + ".csv";
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function exportPDF(title, headers, rows, extraInfo = []) {
+  const w = window.open("", "_blank");
+  const styles = `
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a2e; margin: 20px; }
+    h1 { color: #1B4332; font-size: 18px; margin-bottom: 4px; }
+    .meta { color: #6B7280; font-size: 10px; margin-bottom: 12px; }
+    .info { background: #F0FDF4; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th { background: #1B4332; color: white; padding: 7px 8px; text-align: left; font-size: 10px; }
+    td { padding: 6px 8px; border-bottom: 1px solid #E9EDC9; font-size: 10px; }
+    tr:nth-child(even) td { background: #FAFAF5; }
+    .footer { margin-top: 20px; font-size: 9px; color: #9CA3AF; border-top: 1px solid #eee; padding-top: 8px; }
+    @media print { button { display: none; } }
+  `;
+  const infoHTML = extraInfo.map(i => `<div><strong>${i.label}:</strong> ${i.val}</div>`).join(" &nbsp;|&nbsp; ");
+  const headerHTML = headers.map(h => `<th>${h}</th>`).join("");
+  const rowsHTML = rows.map(r => `<tr>${r.map(c => `<td>${c ?? ""}</td>`).join("")}</tr>`).join("");
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>${styles}</style></head>
+  <body>
+  <button onclick="window.print()" style="background:#1B4332;color:white;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;margin-bottom:12px;font-size:12px;">🖨️ Imprimer / Sauvegarder en PDF</button>
+  <h1>🥑 AvoManager Cameroun — ${title}</h1>
+  <div class="meta">Exporté le ${new Date().toLocaleDateString("fr-FR")} à ${new Date().toLocaleTimeString("fr-FR")}</div>
+  ${infoHTML ? `<div class="info">${infoHTML}</div>` : ""}
+  <table><thead><tr>${headerHTML}</tr></thead><tbody>${rowsHTML}</tbody></table>
+  <div class="footer">AvoManager Cameroun — Document généré automatiquement</div>
+  </body></html>`);
+  w.document.close();
+}
+
+// Bouton export réutilisable
+function ExportBar({ title, headers, rows, extraInfo = [], filename }) {
+  return (
+    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginBottom: 10 }}>
+      <button onClick={() => exportPDF(title, headers, rows, extraInfo)} style={{
+        background: "#DC2626", color: "white", border: "none", borderRadius: 8,
+        padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+      }}>📄 Export PDF</button>
+      <button onClick={() => exportCSV(filename || title, headers, rows)} style={{
+        background: "#065F46", color: "white", border: "none", borderRadius: 8,
+        padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+      }}>📊 Export Excel/CSV</button>
+    </div>
+  );
+}
+
 const initialTrees = [
   { id: 1, site: "Site A", variety: "Hass", count: 600, year: 2018, status: "Production" },
   { id: 2, site: "Site A", variety: "Fuerte", count: 400, year: 2019, status: "Production" },
@@ -100,6 +193,13 @@ const initialCharges = [
   { id: 4, date: "2024-03-05", category: "Emballage & stockage", label: "Caisses en bois (100 unités)", site: "Site A", amount: 60000, paid: false, notes: "" },
   { id: 5, date: "2024-03-25", category: "Intrants agricoles", label: "Fongicide cuivre (20L)", site: "Site C", amount: 32000, paid: true, notes: "Traitement anthracnose" },
   { id: 6, date: "2024-04-01", category: "Carburant & transport", label: "Transport récolte Douala", site: "Site A", amount: 55000, paid: true, notes: "" },
+];
+
+// ─── Avocatiers sélectionnés ──────────────────────────────────────────────────
+const initialSelectedTrees = [
+  { id: 1, ref: "AVO-A-001", site: "Site A", variety: "Hass", year: 2016, latDec: 3.84803, lngDec: 11.50215, reason: "Performance de récolte exceptionnelle", notes: "Production moyenne 120kg/an", status: "Actif" },
+  { id: 2, ref: "AVO-A-002", site: "Site A", variety: "Fuerte", year: 2017, latDec: 3.84756, lngDec: 11.50198, reason: "Qualité du fruit (calibre, goût)", notes: "Fruits de calibre A+", status: "Actif" },
+  { id: 3, ref: "AVO-B-001", site: "Site B", variety: "Both 7", year: 2015, latDec: 3.87124, lngDec: 11.52341, reason: "Potentiel porte-greffe", notes: "Système racinaire exceptionnel", status: "Actif" },
 ];
 
 // ─── Composants utilitaires ──────────────────────────────────────────────────
@@ -273,6 +373,13 @@ function TreesModule({ trees, setTrees }) {
         </div>
       </Card>
 
+      <ExportBar
+        title="Parcelles"
+        headers={["Site","Variété","Nb arbres","Année plantation","Statut","Notes"]}
+        rows={trees.map(t=>[t.site,t.variety,t.count,t.year,t.status,t.notes||"—"])}
+        extraInfo={[{label:"Total arbres",val:trees.reduce((s,t)=>s+t.count,0).toLocaleString()}]}
+        filename="parcelles"
+      />
       <Card>
         <h3 style={sectionTitle}>🌳 Mes parcelles ({trees.reduce((s, t) => s + t.count, 0).toLocaleString()} arbres)</h3>
         <div style={{ overflowX: "auto" }}>
@@ -335,6 +442,12 @@ function HarvestModule({ harvests, setHarvests }) {
         <div style={{ marginTop: 14 }}><Btn onClick={save}>Enregistrer</Btn></div>
       </Card>
 
+      <ExportBar
+        title="Récoltes"
+        headers={["Date","Site","Variété","Quantité (kg)","Notes"]}
+        rows={[...harvests].sort((a,b)=>b.date.localeCompare(a.date)).map(h=>[h.date,h.site,h.variety,h.qty,h.notes])}
+        filename="recoltes"
+      />
       <Card>
         <h3 style={sectionTitle}>🧺 Historique des récoltes — Total : {total.toLocaleString()} kg</h3>
         <div style={{ overflowX: "auto" }}>
@@ -408,6 +521,12 @@ function SalesModule({ sales, setSales }) {
         <div style={{ marginTop: 12 }}><Btn onClick={save}>Enregistrer</Btn></div>
       </Card>
 
+      <ExportBar
+        title="Ventes"
+        headers={["Date","Acheteur","Variété","Quantité (kg)","Prix/kg","Total (FCFA)","Statut"]}
+        rows={[...sales].sort((a,b)=>b.date.localeCompare(a.date)).map(v=>[v.date,v.buyer,v.variety,v.qty,v.price,v.qty*v.price,v.paid?"Payé":"En attente"])}
+        filename="ventes"
+      />
       <Card>
         <h3 style={sectionTitle}>📦 Historique des ventes</h3>
         <div style={{ overflowX: "auto" }}>
@@ -474,6 +593,12 @@ function TreatmentsModule({ treatments, setTreatments }) {
         <div style={{ marginTop: 14 }}><Btn onClick={save}>Enregistrer</Btn></div>
       </Card>
 
+      <ExportBar
+        title="Interventions"
+        headers={["Date","Site","Type","Produit","Quantité","Notes"]}
+        rows={[...treatments].sort((a,b)=>b.date.localeCompare(a.date)).map(t=>[t.date,t.site,t.type,t.product||"—",t.qty?`${t.qty} ${t.unit}`:"—",t.notes||"—"])}
+        filename="interventions"
+      />
       <Card>
         <h3 style={sectionTitle}>📋 Historique des interventions ({treatments.length})</h3>
         <div style={{ overflowX: "auto" }}>
@@ -604,6 +729,12 @@ function NurseryModule({ batches, setBatches, graftings, setGraftings }) {
             </div>
           </Card>
 
+          <ExportBar
+            title="Lots Pépinière"
+            headers={["Lot","Date semis","Site","Variété","Graines","Vivants","Survie %","Stade","Notes"]}
+            rows={batches.map(b=>[b.name,b.startDate,b.site,b.variety,b.qtySeeds,b.qtyAlive,b.qtySeeds>0?Math.round(b.qtyAlive/b.qtySeeds*100)+"%" :"—",b.stage,b.notes||"—"])}
+            filename="pepiniere_lots"
+          />
           <Card>
             <h3 style={sectionTitle}>🪴 Lots en cours ({batches.length})</h3>
             <div style={{ overflowX: "auto" }}>
@@ -685,6 +816,12 @@ function NurseryModule({ batches, setBatches, graftings, setGraftings }) {
             </div>
           </Card>
 
+          <ExportBar
+            title="Greffages"
+            headers={["Date","Lot","Technique","Porte-greffe","Greffon","Greffés","Reprises","Taux %","Contrôle","Statut","Destination","Notes"]}
+            rows={[...graftings].sort((a,b)=>b.date.localeCompare(a.date)).map(g=>[g.date,g.batchName,g.technique,g.rootstock,g.scion,g.qtyGrafted,g.qtySuccess||"—",g.qtyGrafted>0&&g.qtySuccess>0?Math.round(g.qtySuccess/g.qtyGrafted*100)+"%":"—",g.checkDate||"—",g.status,g.destination||"—",g.notes||"—"])}
+            filename="greffages"
+          />
           <Card>
             <h3 style={sectionTitle}>✂️ Historique des greffages ({graftings.length} opérations)</h3>
             <div style={{ overflowX: "auto" }}>
@@ -980,6 +1117,13 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
             </div>
           </Card>
 
+          <ExportBar
+            title="Personnel Permanent"
+            headers={["Nom","Poste","Site","Salaire/mois (FCFA)","Date embauche","Téléphone","Statut","Notes"]}
+            rows={staff.map(s=>[s.name,s.role,s.site,s.salary,s.startDate,s.phone||"—",s.status,s.notes||"—"])}
+            extraInfo={[{label:"Masse salariale/mois",val:staff.filter(s=>s.status==="Actif").reduce((sum,s)=>sum+s.salary,0).toLocaleString()+" FCFA"}]}
+            filename="personnel_permanent"
+          />
           <Card>
             <h3 style={sectionTitle}>👷 Personnel permanent — Masse salariale : {monthlyPayroll.toLocaleString()} FCFA/mois</h3>
             <div style={{ overflowX: "auto" }}>
@@ -1042,6 +1186,13 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
             <div style={{ marginTop: 14 }}><Btn onClick={saveTempWork}>Enregistrer</Btn></div>
           </Card>
 
+          <ExportBar
+            title="Main d'Oeuvre Temporaire"
+            headers={["Date","Site","Tâche","Personnes","Jours","Taux/j (FCFA)","Total (FCFA)","Notes"]}
+            rows={[...tempWork].sort((a,b)=>b.date.localeCompare(a.date)).map(t=>[t.date,t.site,t.task,t.nbWorkers,t.nbDays,t.dailyRate,t.total,t.notes||"—"])}
+            extraInfo={[{label:"Total MO temporaire",val:tempWork.reduce((s,t)=>s+t.total,0).toLocaleString()+" FCFA"}]}
+            filename="mo_temporaire"
+          />
           <Card>
             <h3 style={sectionTitle}>👥 Historique main d'œuvre temporaire — Total : {tempWork.reduce((s, t) => s + t.total, 0).toLocaleString()} FCFA</h3>
             <div style={{ overflowX: "auto" }}>
@@ -1099,6 +1250,13 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
             </div>
           </Card>
 
+          <ExportBar
+            title="Journal des Charges"
+            headers={["Date","Catégorie","Libellé","Site","Montant (FCFA)","Statut","Notes"]}
+            rows={[...charges].sort((a,b)=>b.date.localeCompare(a.date)).map(c=>[c.date,c.category,c.label,c.site,c.amount,c.paid?"Payé":"À payer",c.notes||"—"])}
+            extraInfo={[{label:"Total charges",val:charges.reduce((s,c)=>s+c.amount,0).toLocaleString()+" FCFA"},{label:"Impayées",val:charges.filter(c=>!c.paid).reduce((s,c)=>s+c.amount,0).toLocaleString()+" FCFA"}]}
+            filename="charges_exploitation"
+          />
           <Card>
             <h3 style={sectionTitle}>📋 Journal des charges — Total : {charges.reduce((s, c) => s + c.amount, 0).toLocaleString()} FCFA</h3>
             <div style={{ overflowX: "auto" }}>
@@ -1231,6 +1389,297 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
   );
 }
 
+// ─── MODULE : Gestion des Sites ──────────────────────────────────────────────
+function SitesModule({ sitesList, setSitesList }) {
+  const emptyForm = { code: "", name: "", latDec: "", lngDec: "", notes: "" };
+  const [form, setForm] = useState(emptyForm);
+  const [editing, setEditing] = useState(null);
+  const [gpsMode, setGpsMode] = useState("decimal"); // decimal | dms
+  const [dmsLat, setDmsLat] = useState("");
+  const [dmsLng, setDmsLng] = useState("");
+
+  const convertDMS = () => {
+    const lat = dmsToDec(dmsLat);
+    const lng = dmsToDec(dmsLng);
+    if (lat !== null && lng !== null) {
+      setForm(f => ({ ...f, latDec: String(lat), lngDec: String(lng) }));
+      alert(`Converti : ${lat}, ${lng}`);
+    } else alert("Format DMS invalide. Exemple: 3°50'52.9\"N");
+  };
+
+  const save = () => {
+    if (!form.code || !form.name) return;
+    const entry = { ...form, latDec: parseFloat(form.latDec) || 0, lngDec: parseFloat(form.lngDec) || 0 };
+    if (editing) {
+      setSitesList(sitesList.map(s => s.code === editing ? entry : s));
+      setEditing(null);
+    } else {
+      setSitesList([...sitesList, entry]);
+    }
+    setForm(emptyForm); setDmsLat(""); setDmsLng("");
+  };
+
+  const edit = (s) => { setForm({ ...s, latDec: String(s.latDec), lngDec: String(s.lngDec) }); setEditing(s.code); };
+  const del = (code) => setSitesList(sitesList.filter(s => s.code !== code));
+
+  // Export
+  const exportHeaders = ["Code", "Nom du site", "Latitude (décimal)", "Longitude (décimal)", "GPS DMS", "Notes"];
+  const exportRows = sitesList.map(s => [s.code, s.name, s.latDec, s.lngDec, formatDMS(s.latDec, s.lngDec), s.notes]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <ExportBar title="Gestion des Sites" headers={exportHeaders} rows={exportRows} filename="sites" />
+
+      <Card>
+        <h3 style={sectionTitle}>{editing ? "✏️ Modifier le site" : "➕ Ajouter un site"}</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+          <Input label="Code (ex: Site D)" value={form.code} onChange={v => setForm({ ...form, code: v })} />
+          <Input label="Nom du site" value={form.name} onChange={v => setForm({ ...form, name: v })} />
+          <Input label="Notes" value={form.notes} onChange={v => setForm({ ...form, notes: v })} />
+        </div>
+
+        {/* GPS */}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.forest, alignSelf: "center" }}>📍 Coordonnées GPS :</span>
+            {["decimal", "dms"].map(m => (
+              <button key={m} onClick={() => setGpsMode(m)} style={{
+                background: gpsMode === m ? COLORS.green : COLORS.sand,
+                color: gpsMode === m ? COLORS.white : COLORS.forest,
+                border: "none", borderRadius: 7, padding: "5px 14px", fontSize: 12,
+                fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+              }}>{m === "decimal" ? "Décimal" : "DMS (°′″)"}</button>
+            ))}
+          </div>
+
+          {gpsMode === "decimal" ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <Input label="Latitude décimale (ex: 3.848033)" value={form.latDec} onChange={v => setForm({ ...form, latDec: v })} />
+              <Input label="Longitude décimale (ex: 11.502075)" value={form.lngDec} onChange={v => setForm({ ...form, lngDec: v })} />
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 12, alignItems: "flex-end" }}>
+              <Input label='Latitude DMS (ex: 3°50\'52.9"N)' value={dmsLat} onChange={setDmsLat} />
+              <Input label='Longitude DMS (ex: 11°30\'7.5"E)' value={dmsLng} onChange={setDmsLng} />
+              <Btn onClick={convertDMS} variant="secondary">Convertir →</Btn>
+            </div>
+          )}
+
+          {form.latDec && form.lngDec && (
+            <div style={{ marginTop: 10, padding: "8px 14px", background: "#EFF6FF", borderRadius: 8, fontSize: 12 }}>
+              <strong>Décimal :</strong> {formatGPS(+form.latDec, +form.lngDec)} &nbsp;|&nbsp;
+              <strong>DMS :</strong> {formatDMS(+form.latDec, +form.lngDec)}
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
+          <Btn onClick={save}>{editing ? "Enregistrer" : "Ajouter"}</Btn>
+          {editing && <Btn variant="secondary" onClick={() => { setEditing(null); setForm(emptyForm); }}>Annuler</Btn>}
+        </div>
+      </Card>
+
+      <Card>
+        <h3 style={sectionTitle}>📍 Mes sites ({sitesList.length})</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14 }}>
+          {sitesList.map(s => (
+            <div key={s.code} style={{ background: COLORS.sand, borderRadius: 14, padding: 16, borderLeft: `5px solid ${COLORS.green}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <div style={{ fontWeight: 900, fontSize: 16, color: COLORS.forest }}>{s.code}</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: COLORS.text, marginTop: 2 }}>{s.name}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <Btn small variant="secondary" onClick={() => edit(s)}>✏️</Btn>
+                  <Btn small variant="danger" onClick={() => del(s.code)}>🗑️</Btn>
+                </div>
+              </div>
+              {s.latDec && s.lngDec && (
+                <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.7 }}>
+                  <div>📐 <strong>Décimal :</strong> {formatGPS(s.latDec, s.lngDec)}</div>
+                  <div>🧭 <strong>DMS :</strong> {formatDMS(s.latDec, s.lngDec)}</div>
+                  <a href={`https://maps.google.com/?q=${s.latDec},${s.lngDec}`} target="_blank" rel="noreferrer"
+                    style={{ color: COLORS.green, fontWeight: 700, textDecoration: "none" }}>
+                    🗺️ Voir sur Google Maps →
+                  </a>
+                </div>
+              )}
+              {s.notes && <div style={{ marginTop: 6, fontSize: 12, color: COLORS.muted, fontStyle: "italic" }}>{s.notes}</div>}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ─── MODULE : Avocatiers Sélectionnés ────────────────────────────────────────
+const SELECTION_REASONS = [
+  "Performance de récolte exceptionnelle",
+  "Qualité du fruit (calibre, goût)",
+  "Potentiel porte-greffe",
+  "Résistance aux maladies",
+  "Précocité / tardivité remarquable",
+  "Port de l'arbre exceptionnel",
+  "Autre raison",
+];
+
+function SelectedTreesModule({ selectedTrees, setSelectedTrees, sitesList }) {
+  const emptyForm = { ref: "", site: "", variety: "", year: "", latDec: "", lngDec: "", reason: "", notes: "", status: "Actif" };
+  const [form, setForm] = useState(emptyForm);
+  const [editing, setEditing] = useState(null);
+  const [gpsMode, setGpsMode] = useState("decimal");
+  const [dmsLat, setDmsLat] = useState(""); const [dmsLng, setDmsLng] = useState("");
+  const [filterSite, setFilterSite] = useState("");
+  const [filterVariety, setFilterVariety] = useState("");
+
+  const siteOptions = sitesList.map(s => `${s.code} — ${s.name}`);
+
+  const convertDMS = () => {
+    const lat = dmsToDec(dmsLat); const lng = dmsToDec(dmsLng);
+    if (lat !== null && lng !== null) { setForm(f => ({ ...f, latDec: String(lat), lngDec: String(lng) })); }
+    else alert("Format DMS invalide. Exemple: 3°50'52.9\"N");
+  };
+
+  const save = () => {
+    if (!form.ref || !form.site || !form.variety) return;
+    const entry = { ...form, id: editing || Date.now(), latDec: parseFloat(form.latDec) || 0, lngDec: parseFloat(form.lngDec) || 0, year: +form.year };
+    setSelectedTrees(editing ? selectedTrees.map(t => t.id === editing ? entry : t) : [...selectedTrees, entry]);
+    setEditing(null); setForm(emptyForm); setDmsLat(""); setDmsLng("");
+  };
+
+  const edit = (t) => { setForm({ ...t, latDec: String(t.latDec), lngDec: String(t.lngDec), year: String(t.year) }); setEditing(t.id); };
+  const del = (id) => setSelectedTrees(selectedTrees.filter(t => t.id !== id));
+
+  const filtered = selectedTrees
+    .filter(t => !filterSite || t.site === filterSite)
+    .filter(t => !filterVariety || t.variety === filterVariety);
+
+  // Export
+  const exportHeaders = ["Référence", "Site", "Variété", "Année", "Latitude", "Longitude", "GPS DMS", "Motif sélection", "Statut", "Notes"];
+  const exportRows = filtered.map(t => [t.ref, t.site, t.variety, t.year, t.latDec, t.lngDec, formatDMS(t.latDec, t.lngDec), t.reason, t.status, t.notes]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <ExportBar title="Avocatiers Sélectionnés" headers={exportHeaders} rows={exportRows} filename="avocatiers_selectionnes" />
+
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+        <StatCard icon="⭐" label="Pieds sélectionnés" value={selectedTrees.length} sub="total référencés" color="#FEF9C3" />
+        <StatCard icon="📍" label="Géolocalisés" value={selectedTrees.filter(t => t.latDec && t.lngDec).length} sub="avec GPS" color="#DBEAFE" />
+        {SITES.map(s => (
+          <StatCard key={s} icon="🌳" label={s} value={selectedTrees.filter(t => t.site === s).length} sub="pieds sélectionnés" color="#D1FAE5" />
+        ))}
+      </div>
+
+      {/* Formulaire */}
+      <Card>
+        <h3 style={sectionTitle}>{editing ? "✏️ Modifier le pied" : "⭐ Référencer un avocatier sélectionné"}</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+          <Input label="Référence unique (ex: AVO-A-004)" value={form.ref} onChange={v => setForm({ ...form, ref: v })} />
+          <Input label="Site" value={form.site} onChange={v => setForm({ ...form, site: v })} options={sitesList.map(s => s.code)} />
+          <Input label="Variété" value={form.variety} onChange={v => setForm({ ...form, variety: v })} options={VARIETIES} />
+          <Input label="Année plantation" type="number" value={form.year} onChange={v => setForm({ ...form, year: v })} />
+          <Input label="Motif de suivi / sélection (libre)" value={form.reason} onChange={v => setForm({ ...form, reason: v })} />
+          <Input label="Statut" value={form.status} onChange={v => setForm({ ...form, status: v })} options={["Actif", "En observation", "Décédé", "Retiré"]} />
+          <div style={{ gridColumn: "1 / -1" }}>
+            <Input label="Notes / Observations" value={form.notes} onChange={v => setForm({ ...form, notes: v })} />
+          </div>
+        </div>
+
+        {/* GPS */}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.forest, alignSelf: "center" }}>📍 Position GPS du pied :</span>
+            {["decimal", "dms"].map(m => (
+              <button key={m} onClick={() => setGpsMode(m)} style={{
+                background: gpsMode === m ? COLORS.green : COLORS.sand,
+                color: gpsMode === m ? COLORS.white : COLORS.forest,
+                border: "none", borderRadius: 7, padding: "5px 14px", fontSize: 12,
+                fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+              }}>{m === "decimal" ? "Décimal" : "DMS (°′″)"}</button>
+            ))}
+          </div>
+          {gpsMode === "decimal" ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <Input label="Latitude décimale" value={form.latDec} onChange={v => setForm({ ...form, latDec: v })} />
+              <Input label="Longitude décimale" value={form.lngDec} onChange={v => setForm({ ...form, lngDec: v })} />
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 12, alignItems: "flex-end" }}>
+              <Input label='Latitude DMS (ex: 3°50\'52.9"N)' value={dmsLat} onChange={setDmsLat} />
+              <Input label='Longitude DMS (ex: 11°30\'7.5"E)' value={dmsLng} onChange={setDmsLng} />
+              <Btn onClick={convertDMS} variant="secondary">Convertir →</Btn>
+            </div>
+          )}
+          {form.latDec && form.lngDec && (
+            <div style={{ marginTop: 10, padding: "8px 14px", background: "#EFF6FF", borderRadius: 8, fontSize: 12 }}>
+              <strong>Décimal :</strong> {formatGPS(+form.latDec, +form.lngDec)} &nbsp;|&nbsp;
+              <strong>DMS :</strong> {formatDMS(+form.latDec, +form.lngDec)}
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
+          <Btn onClick={save}>{editing ? "Enregistrer" : "Référencer"}</Btn>
+          {editing && <Btn variant="secondary" onClick={() => { setEditing(null); setForm(emptyForm); }}>Annuler</Btn>}
+        </div>
+      </Card>
+
+      {/* Filtres + Liste */}
+      <Card>
+        <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <h3 style={{ ...sectionTitle, flex: 1, marginBottom: 0, borderBottom: "none" }}>⭐ Registre des pieds sélectionnés ({filtered.length})</h3>
+          <select value={filterSite} onChange={e => setFilterSite(e.target.value)} style={{ ...inputStyle, width: 140 }}>
+            <option value="">Tous les sites</option>
+            {sitesList.map(s => <option key={s.code} value={s.code}>{s.code}</option>)}
+          </select>
+          <select value={filterVariety} onChange={e => setFilterVariety(e.target.value)} style={{ ...inputStyle, width: 130 }}>
+            <option value="">Toutes variétés</option>
+            {VARIETIES.map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+        </div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: COLORS.sand }}>
+                {["Référence", "Site", "Variété", "Année", "GPS Décimal", "GPS DMS", "Motif", "Statut", "Notes", ""].map(h => (
+                  <th key={h} style={{ padding: "9px 10px", textAlign: "left", fontWeight: 700, color: COLORS.forest, whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((t, i) => (
+                <tr key={t.id} style={{ background: i % 2 === 0 ? COLORS.white : "#FAFAF5" }}>
+                  <td style={{ ...td, fontWeight: 800, color: COLORS.forest }}>{t.ref}</td>
+                  <td style={td}>{t.site}</td>
+                  <td style={td}><Badge color="green">{t.variety}</Badge></td>
+                  <td style={td}>{t.year}</td>
+                  <td style={{ ...td, fontSize: 11, fontFamily: "monospace" }}>{formatGPS(t.latDec, t.lngDec)}</td>
+                  <td style={{ ...td, fontSize: 11 }}>{formatDMS(t.latDec, t.lngDec)}</td>
+                  <td style={{ ...td, fontSize: 11 }}>{t.reason}</td>
+                  <td style={td}><Badge color={t.status === "Actif" ? "green" : "amber"}>{t.status}</Badge></td>
+                  <td style={{ ...td, color: COLORS.muted, fontSize: 11 }}>{t.notes || "—"}</td>
+                  <td style={td}>
+                    <div style={{ display: "flex", gap: 5 }}>
+                      {t.latDec && t.lngDec && (
+                        <a href={`https://maps.google.com/?q=${t.latDec},${t.lngDec}`} target="_blank" rel="noreferrer"
+                          style={{ textDecoration: "none", fontSize: 16 }} title="Voir sur carte">🗺️</a>
+                      )}
+                      <Btn small variant="secondary" onClick={() => edit(t)}>✏️</Btn>
+                      <Btn small variant="danger" onClick={() => del(t.id)}>🗑️</Btn>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Styles communs ──────────────────────────────────────────────────────────
 const sectionTitle = {
   margin: "0 0 16px", fontSize: 16, fontWeight: 800, color: COLORS.forest,
@@ -1356,6 +1805,55 @@ function PnLModule({ sales, harvests, staff, tempWork, charges }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16 }}>
           {/* Compte d'exploitation */}
           <Card style={{ gridColumn: "1 / -1" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+              <button onClick={() => exportPDF(
+                `Compte d'Exploitation ${year}`,
+                ["Libellé", "Montant (FCFA)", "% CA"],
+                [
+                  ["TOTAL PRODUITS", totalProduits, "100%"],
+                  ["  Ventes d'avocats", revenuVentes, totalProduits>0?(revenuVentes/totalProduits*100).toFixed(1)+"%":""],
+                  ["  Stock valorisé", valorisationStock, ""],
+                  ["TOTAL CHARGES", totalCharges, totalProduits>0?(totalCharges/totalProduits*100).toFixed(1)+"%":""],
+                  ["  Salaires permanents", masseSal, ""],
+                  ["  MO temporaire", chargesMOTemp, ""],
+                  ["  Intrants agricoles", chargesIntrants, ""],
+                  ["  Carburant & transport", chargesCarbu, ""],
+                  ["  Irrigation & eau", chargesIrrig, ""],
+                  ["  Emballage & stockage", chargesEmb, ""],
+                  ["  Entretien & réparations", chargesEnt, ""],
+                  ["  Matériel & équipements", chargesMat, ""],
+                  ["  Taxes & certifications", chargesTaxes, ""],
+                  ["  Divers & amortissements", chargesDivers, ""],
+                  ["Marge Brute Agricole", MBA, totalProduits>0?(MBA/totalProduits*100).toFixed(1)+"%":""],
+                  ["Excédent Brut d'Exploitation", EBE, totalProduits>0?(EBE/totalProduits*100).toFixed(1)+"%":""],
+                  [resultatNet>=0?"BÉNÉFICE NET":"DÉFICIT NET", resultatNet, margeNette+"%"],
+                ],
+                [
+                  {label:"Exercice", val:year},
+                  {label:"CA", val:totalProduits.toLocaleString()+" FCFA"},
+                  {label:"Résultat", val:(resultatNet>=0?"+":"")+resultatNet.toLocaleString()+" FCFA"},
+                  {label:"Marge nette", val:margeNette+"%"},
+                  {label:"Coût/kg", val:coutParKg+" FCFA"},
+                ]
+              )} style={{
+                background:"#DC2626",color:"white",border:"none",borderRadius:8,
+                padding:"7px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginRight:8
+              }}>📄 Export PDF Compte Exploitation</button>
+              <button onClick={() => exportCSV("compte_exploitation_"+year, ["Libellé","Montant (FCFA)","%CA"], [
+                ["TOTAL PRODUITS",totalProduits,"100%"],
+                ["Ventes",revenuVentes,""],["Stock valorisé",valorisationStock,""],
+                ["TOTAL CHARGES",totalCharges,""],["Salaires",masseSal,""],
+                ["MO temporaire",chargesMOTemp,""],["Intrants",chargesIntrants,""],
+                ["Carburant",chargesCarbu,""],["Irrigation",chargesIrrig,""],
+                ["Emballage",chargesEmb,""],["Entretien",chargesEnt,""],
+                ["Matériel",chargesMat,""],["Taxes",chargesTaxes,""],["Divers",chargesDivers,""],
+                ["MBA",MBA,""],["EBE",EBE,""],
+                [resultatNet>=0?"BÉNÉFICE":"DÉFICIT",resultatNet,margeNette+"%"]
+              ])} style={{
+                background:"#065F46",color:"white",border:"none",borderRadius:8,
+                padding:"7px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"
+              }}>📊 Export Excel/CSV</button>
+            </div>
             <h3 style={sectionTitle}>📄 Compte d'Exploitation — Exercice {year}</h3>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -1636,14 +2134,16 @@ function useSupabaseTable(tableName, lsKey, initialData) {
 
 // ─── APP PRINCIPALE ──────────────────────────────────────────────────────────
 const TABS = [
-  { id: "dashboard",  label: "Tableau de bord", icon: "📊" },
-  { id: "trees",      label: "Parcelles",        icon: "🌳" },
-  { id: "nursery",    label: "Pépinière",        icon: "🌱" },
-  { id: "harvest",    label: "Récoltes",          icon: "🧺" },
-  { id: "sales",      label: "Ventes",            icon: "💰" },
-  { id: "treatments", label: "Interventions",     icon: "🌿" },
-  { id: "hr",         label: "RH & Charges",      icon: "👷" },
-  { id: "pnl",        label: "Compte Exploit.",   icon: "📄" },
+  { id: "dashboard",      label: "Tableau de bord",    icon: "📊" },
+  { id: "sites",          label: "Sites",              icon: "📍" },
+  { id: "trees",          label: "Parcelles",          icon: "🌳" },
+  { id: "selected_trees", label: "Pieds sélectionnés", icon: "⭐" },
+  { id: "nursery",        label: "Pépinière",          icon: "🌱" },
+  { id: "harvest",        label: "Récoltes",           icon: "🧺" },
+  { id: "sales",          label: "Ventes",             icon: "💰" },
+  { id: "treatments",     label: "Interventions",      icon: "🌿" },
+  { id: "hr",             label: "RH & Charges",       icon: "👷" },
+  { id: "pnl",            label: "Compte Exploit.",    icon: "📄" },
 ];
 
 export default function App() {
@@ -1659,6 +2159,13 @@ export default function App() {
   const staffDB      = useSupabaseTable("staff",          "avo_staff",    initialPermanentStaff);
   const tempDB       = useSupabaseTable("temp_work",      "avo_temp",     initialTempWork);
   const chargesDB    = useSupabaseTable("charges",        "avo_charges",  initialCharges);
+
+  // ── État local pour sites et pieds sélectionnés (localStorage uniquement)
+  const [sitesList,      setSitesListRaw]   = useState(() => loadLS("avo_sites_list",    initialSitesList));
+  const [selectedTrees,  setSelTreesRaw]    = useState(() => loadLS("avo_selected_trees", initialSelectedTrees));
+
+  const setSitesList     = (v) => { setSitesListRaw(v);  saveLS("avo_sites_list", v); };
+  const setSelectedTrees = (v) => { setSelTreesRaw(v);   saveLS("avo_selected_trees", v); };
 
   const allLoading = [treesDB, harvestsDB, salesDB, treatsDB, nurseryDB, graftingsDB, staffDB, tempDB, chargesDB].some(d => d.loading);
   const allSynced  = [treesDB, harvestsDB, salesDB, treatsDB, nurseryDB, graftingsDB, staffDB, tempDB, chargesDB].every(d => d.synced);
@@ -1780,7 +2287,9 @@ export default function App() {
           {tab === "sales"      && <SalesModule   sales={sales} setSales={setSales} />}
           {tab === "treatments" && <TreatmentsModule treatments={treatments} setTreatments={setTreatments} />}
           {tab === "hr"         && <HRChargesModule staff={staff} setStaff={setStaff} tempWork={tempWork} setTempWork={setTempWork} charges={charges} setCharges={setCharges} />}
-          {tab === "pnl"        && <PnLModule     sales={sales} harvests={harvests} staff={staff} tempWork={tempWork} charges={charges} />}
+          {tab === "sites"          && <SitesModule sitesList={sitesList} setSitesList={setSitesList} />}
+          {tab === "selected_trees" && <SelectedTreesModule selectedTrees={selectedTrees} setSelectedTrees={setSelectedTrees} sitesList={sitesList} />}
+          {tab === "pnl"            && <PnLModule sales={sales} harvests={harvests} staff={staff} tempWork={tempWork} charges={charges} />}
         </>}
       </div>
     </div>
