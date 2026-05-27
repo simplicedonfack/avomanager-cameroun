@@ -1459,8 +1459,8 @@ function SitesModule({ sitesList, setSitesList }) {
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 12, alignItems: "flex-end" }}>
-              <Input label='Latitude DMS (ex: 3°50\'52.9"N)' value={dmsLat} onChange={setDmsLat} />
-              <Input label='Longitude DMS (ex: 11°30\'7.5"E)' value={dmsLng} onChange={setDmsLng} />
+              <Input label="Latitude DMS (ex: 3deg50min52.9N)" value={dmsLat} onChange={setDmsLat} />
+              <Input label="Longitude DMS (ex: 11deg30min7.5E)" value={dmsLng} onChange={setDmsLng} />
               <Btn onClick={convertDMS} variant="secondary">Convertir →</Btn>
             </div>
           )}
@@ -1607,8 +1607,8 @@ function SelectedTreesModule({ selectedTrees, setSelectedTrees, sitesList }) {
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 12, alignItems: "flex-end" }}>
-              <Input label='Latitude DMS (ex: 3°50\'52.9"N)' value={dmsLat} onChange={setDmsLat} />
-              <Input label='Longitude DMS (ex: 11°30\'7.5"E)' value={dmsLng} onChange={setDmsLng} />
+              <Input label="Latitude DMS (ex: 3deg50min52.9N)" value={dmsLat} onChange={setDmsLat} />
+              <Input label="Longitude DMS (ex: 11deg30min7.5E)" value={dmsLng} onChange={setDmsLng} />
               <Btn onClick={convertDMS} variant="secondary">Convertir →</Btn>
             </div>
           )}
