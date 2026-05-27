@@ -186,9 +186,9 @@ function exportPDF(title, headers, rows, extraInfo = []) {
 
 // ─── Base Components ─────────────────────────────────────────────────────────
 const inputStyle = {
-  border: `1.5px solid ${C.sand}`, borderRadius: 8, padding: "9px 12px",
+  border: `1.5px solid ${C.sand}`, borderRadius: 8, padding: "10px 12px",
   fontSize: 13, color: C.text, background: C.white, outline: "none", fontFamily: FONT,
-  width: "100%", boxSizing: "border-box",
+  width: "100%", boxSizing: "border-box", height: 42,
 };
 
 const Badge = ({ color, children }) => {
@@ -214,7 +214,7 @@ const StatCard = ({ icon, label, value, sub, color }) => (
 
 const Input = ({ label, value, onChange, type = "text", options, optObjects }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-    <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: FONT }}>{label}</label>
+    <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, fontFamily: FONT }}>{label}</label>
     {(options || optObjects) ? (
       <select value={value} onChange={e => onChange(e.target.value)} style={inputStyle}>
         <option value="">-- Choisir --</option>
@@ -245,7 +245,7 @@ const VarietyInput = ({ label, value, onChange, species, speciesName, onAddVarie
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: FONT }}>{label}</label>
+      <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, fontFamily: FONT }}>{label}</label>
       <div style={{ display: "flex", gap: 6 }}>
         <select value={value} onChange={e => onChange(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
           <option value="">-- Choisir --</option>
@@ -335,10 +335,10 @@ function SpeciesModule({ species, setSpecies }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <Card>
         <h3 style={sectionTitle}>{editing ? "✏️ Modifier l'espèce" : "➕ Ajouter une espèce fruitière"}</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
           <Input label="Nom de l'espèce" value={form.name} onChange={v => setForm({ ...form, name: v })} />
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: FONT }}>Emoji</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, fontFamily: FONT }}>Emoji</label>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {EMOJIS.map(e => (
                 <button key={e} onClick={() => setForm({ ...form, emoji: e })} style={{
@@ -350,7 +350,7 @@ function SpeciesModule({ species, setSpecies }) {
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: FONT }}>Couleur</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, fontFamily: FONT }}>Couleur</label>
             <input type="color" value={form.color} onChange={e => setForm({ ...form, color: e.target.value })}
               style={{ width: 60, height: 38, border: "none", cursor: "pointer", borderRadius: 8 }} />
           </div>
@@ -554,7 +554,7 @@ function TreesModule({ trees, setTrees, species, sitesList, onAddVariety }) {
         <div style={{ marginBottom: 10, padding: "8px 12px", background: "#EFF6FF", borderRadius: 8, fontSize: 12, fontFamily: FONT, color: "#1E40AF" }}>
           💡 Sur un même site, ajoutez une ligne par espèce et par variété.
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
           <Input label="Site" value={form.site} onChange={v => setForm({ ...form, site: v })}
             optObjects={siteOptions(sitesList)} />
           <Input label="Espèce" value={form.species} onChange={v => setForm({ ...form, species: v, variety: "" })}
@@ -701,7 +701,7 @@ function HarvestModule({ harvests, setHarvests, species, sitesList, onAddVariety
       <ExportBar title="Récoltes" headers={["Date","Site","Espèce","Variété","Quantité","Unité","Notes"]} rows={exportRows} filename="recoltes" />
       <Card>
         <h3 style={sectionTitle}>➕ Enregistrer une récolte</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
           <Input label="Date" type="date" value={form.date} onChange={v => setForm({...form, date:v})} />
           <Input label="Site" value={form.site} onChange={v => setForm({...form, site:v})} optObjects={siteOptions(sitesList)} />
           <Input label="Espèce" value={form.species} onChange={v => setForm({...form, species:v, variety:""})} options={species.map(s=>s.name)} />
@@ -944,7 +944,7 @@ function NurseryModule({ batches, setBatches, graftings, setGraftings, species, 
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12 }}>
               <Input label="Nom du lot" value={bForm.name} onChange={v=>setBForm({...bForm,name:v})} />
               <Input label="Date semis" type="date" value={bForm.startDate} onChange={v=>setBForm({...bForm,startDate:v})} />
-              <Input label="Site" value={bForm.site} onChange={v=>setBForm({...bForm,site:v})} options={sitesList.map(s=>s.code)} />
+              <Input label="Site" value={bForm.site} onChange={v=>setBForm({...bForm,site:v})} optObjects={siteOptions(sitesList)} />
               <Input label="Espèce" value={bForm.species} onChange={v=>setBForm({...bForm,species:v,variety:""})} options={species.map(s=>s.name)} />
               <Input label="Variété" value={bForm.variety} onChange={v=>setBForm({...bForm,variety:v})} options={varietyOptBatch} />
               <Input label="Graines semées" type="number" value={bForm.qtySeeds} onChange={v=>setBForm({...bForm,qtySeeds:v})} />
@@ -1006,7 +1006,7 @@ function NurseryModule({ batches, setBatches, graftings, setGraftings, species, 
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12 }}>
               <Input label="Date" type="date" value={gForm.date} onChange={v=>setGForm({...gForm,date:v})} />
               <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-                <label style={{ fontSize:11, fontWeight:600, color:C.muted, textTransform:"uppercase", letterSpacing:0.8, fontFamily:FONT }}>Lot source</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, fontFamily: FONT }}>Lot source</label>
                 <select value={gForm.batchId} onChange={e=>setGForm({...gForm,batchId:e.target.value})} style={inputStyle}>
                   <option value="">-- Choisir --</option>
                   {batches.map(b=><option key={b.id} value={b.id}>{b.name} ({b.qtyAlive} plants)</option>)}
@@ -1269,7 +1269,7 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
             <h3 style={sectionTitle}>➕ Enregistrer une prestation</h3>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12 }}>
               <Input label="Date" type="date" value={tForm.date} onChange={v=>setTForm({...tForm,date:v})} />
-              <Input label="Site" value={tForm.site} onChange={v=>setTForm({...tForm,site:v})} options={sitesList.map(s=>s.code)} />
+              <Input label="Site" value={tForm.site} onChange={v=>setTForm({...tForm,site:v})} optObjects={siteOptions(sitesList)} />
               <Input label="Tâche" value={tForm.task} onChange={v=>setTForm({...tForm,task:v})} options={TASKS_TEMP} />
               <Input label="Nb personnes" type="number" value={tForm.nbWorkers} onChange={v=>setTForm({...tForm,nbWorkers:v})} />
               <Input label="Nb jours" type="number" value={tForm.nbDays} onChange={v=>setTForm({...tForm,nbDays:v})} />
@@ -1543,7 +1543,7 @@ function SelectedTreesModule({ selectedTrees, setSelectedTrees, sitesList, speci
         <h3 style={sectionTitle}>{editing?"✏️ Modifier":"⭐ Référencer un arbre"}</h3>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:12 }}>
           <Input label="Référence (ex: ARB-A-004)" value={form.ref} onChange={v=>setForm({...form,ref:v})} />
-          <Input label="Site" value={form.site} onChange={v=>setForm({...form,site:v})} options={sitesList.map(s=>s.code)} />
+          <Input label="Site" value={form.site} onChange={v=>setForm({...form,site:v})} optObjects={siteOptions(sitesList)} />
           <Input label="Espèce" value={form.species} onChange={v=>setForm({...form,species:v,variety:""})} options={species.map(s=>s.name)} />
           <Input label="Variété" value={form.variety} onChange={v=>setForm({...form,variety:v})} options={varietyOptions} />
           <Input label="Année plantation" type="number" value={form.year} onChange={v=>setForm({...form,year:v})} />
@@ -1702,7 +1702,7 @@ function PnLModule({ sales, harvests, staff, tempWork, charges }) {
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
       <Card style={{ display:"flex", alignItems:"center", gap:16, flexWrap:"wrap" }}>
         <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-          <label style={{ fontSize:11, fontWeight:600, color:C.muted, textTransform:"uppercase", fontFamily:FONT }}>Exercice</label>
+          <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, fontFamily: FONT }}>Exercice</label>
           <select value={year} onChange={e=>setYear(e.target.value)} style={{ ...inputStyle, width:100 }}>
             {["2022","2023","2024","2025","2026"].map(y=><option key={y}>{y}</option>)}
           </select>
