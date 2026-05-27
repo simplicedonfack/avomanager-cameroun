@@ -21,9 +21,9 @@ const SITES = ["Site A", "Site B", "Site C"];
 
 // ─── Sites enrichis (code + nom + GPS) ──────────────────────────────────────
 const initialSitesList = [
-  { code: "Site A", name: "Plantation Mbankomo",  latDec: 3.8480,  lngDec: 11.5021, notes: "Site principal, zone basse" },
-  { code: "Site B", name: "Plantation Ngousso",   latDec: 3.8712,  lngDec: 11.5234, notes: "Terrain en pente douce" },
-  { code: "Site C", name: "Plantation Olembe",    latDec: 3.9102,  lngDec: 11.4987, notes: "Zone haute, bonne exposition" },
+  { code: "Site A", name: "Plantation Missole Mbanda",  latDec: 3.8480,  lngDec: 11.5021, notes: "Site principal, zone basse" },
+  { code: "Site B", name: "Jardin Ndogpassi",   latDec: 3.8712,  lngDec: 11.5234, notes: "Terrain en pente douce" },
+  { code: "Site C", name: "Pépinière Nkendeck",    latDec: 3.9102,  lngDec: 11.4987, notes: "Zone haute, bonne exposition" },
 ];
 
 // ─── Utilitaires GPS ─────────────────────────────────────────────────────────
@@ -179,10 +179,10 @@ const CHARGE_CATEGORIES = [
   "Entretien & réparations",
   "Irrigation & eau",
   "Emballage & stockage",
-  "Frais vétérinaires / santé végétale",
-  "Location terrain",
+  "Frais Pesticides / santé végétale",
+  "Sécurité",
   "Impôts & taxes",
-  "Certification & normes",
+  "Personnel",
   "Communication & divers",
   "Amortissements",
 ];
