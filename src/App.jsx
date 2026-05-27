@@ -835,62 +835,108 @@ function SalesModule({ sales, setSales, species, sitesList, onAddVariety }) {
   );
 }
 
-// ─── MODULE : Interventions ──────────────────────────────────────────────────
-function TreatmentsModule({ treatments, setTreatments, species, sitesList }) {
-  const [form, setForm] = useState({ date:"", site:"", species:"Tous", type:"", product:"", qty:"", unit:"kg", notes:"" });
+// ─── MODULE : Interventions (enrichi) ────────────────────────────────────────
+function TreatmentsModule({ treatments, setTreatments, species, sitesList, staff }) {
+  const emptyForm = { dateStart:"", dateEnd:"", site:"", species:"Tous", type:"", product:"", qty:"", unit:"kg", responsible:"", notes:"" };
+  const [form, setForm] = useState(emptyForm);
+  const [editing, setEditing] = useState(null);
+  const [filterType, setFilterType] = useState("");
 
-  const save = () => {
-    if (!form.date||!form.site||!form.type) return;
-    setTreatments([...treatments, { ...form, id:Date.now(), qty:+form.qty }]);
-    setForm({ date:"", site:"", species:"Tous", type:"", product:"", qty:"", unit:"kg", notes:"" });
+  const activeStaff = staff.filter(s => s.status === "Actif");
+
+  const duration = (start, end) => {
+    if (!start || !end) return null;
+    const d = Math.round((new Date(end) - new Date(start)) / (24*60*60*1000));
+    return d >= 0 ? d : null;
   };
 
-  const exportRows = [...treatments].sort((a,b)=>b.date.localeCompare(a.date))
-    .map(t=>[t.date,t.site,t.species,t.type,t.product||"—",t.qty?`${t.qty} ${t.unit}`:"—",t.notes||"—"]);
+  const save = () => {
+    if (!form.dateStart || !form.site || !form.type) return;
+    const entry = { ...form, id: editing || Date.now(), qty: +form.qty };
+    setTreatments(editing ? treatments.map(t => t.id === editing ? entry : t) : [...treatments, entry]);
+    setEditing(null); setForm(emptyForm);
+  };
 
-  const typeIcon = { Engrais:"🌿", Taille:"✂️", Irrigation:"💧", Traitement:"🧪", Autre:"📝" };
+  const filtered = treatments.filter(t => !filterType || t.type === filterType);
+  const typeIcon = { Engrais:"🌿", Taille:"✂️", Irrigation:"💧", Traitement:"🧪", Récolte:"🧺", Transport:"🚛", Formation:"📚", Autre:"📝" };
+
+  const exportRows = filtered.map(t => [
+    t.dateStart, t.dateEnd||"—", siteLabel(t.site,sitesList), t.species, t.type,
+    t.product||"—", t.qty?`${t.qty} ${t.unit}`:"—", t.responsible||"—",
+    duration(t.dateStart,t.dateEnd)!==null?`${duration(t.dateStart,t.dateEnd)} j`:"—", t.notes||"—"
+  ]);
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-      <ExportBar title="Interventions" headers={["Date","Site","Espèce","Type","Produit","Quantité","Notes"]} rows={exportRows} filename="interventions" />
+      <ExportBar title="Interventions" headers={["Début","Fin","Site","Espèce","Type","Produit","Quantité","Responsable","Durée","Notes"]} rows={exportRows} filename="interventions" />
       <Card>
-        <h3 style={sectionTitle}>➕ Enregistrer une intervention</h3>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12 }}>
-          <Input label="Date" type="date" value={form.date} onChange={v=>setForm({...form,date:v})} />
+        <h3 style={sectionTitle}>{editing ? "✏️ Modifier" : "➕ Enregistrer une intervention"}</h3>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
+          <Input label="Date de début" type="date" value={form.dateStart} onChange={v=>setForm({...form,dateStart:v})} />
+          <Input label="Date de fin" type="date" value={form.dateEnd} onChange={v=>setForm({...form,dateEnd:v})} />
           <Input label="Site" value={form.site} onChange={v=>setForm({...form,site:v})} optObjects={siteOptions(sitesList)} />
           <Input label="Espèce concernée" value={form.species} onChange={v=>setForm({...form,species:v})} options={["Tous",...species.map(s=>s.name)]} />
-          <Input label="Type" value={form.type} onChange={v=>setForm({...form,type:v})} options={["Engrais","Traitement","Irrigation","Taille","Autre"]} />
+          <Input label="Type d'intervention" value={form.type} onChange={v=>setForm({...form,type:v})} options={["Engrais","Traitement phytosanitaire","Irrigation","Taille","Récolte","Désherbage","Transport","Formation","Entretien","Autre"]} />
           <Input label="Produit / Détail" value={form.product} onChange={v=>setForm({...form,product:v})} />
           <Input label="Quantité" type="number" value={form.qty} onChange={v=>setForm({...form,qty:v})} />
-          <Input label="Unité" value={form.unit} onChange={v=>setForm({...form,unit:v})} options={["kg","L","sacs","—"]} />
-          <Input label="Notes" value={form.notes} onChange={v=>setForm({...form,notes:v})} />
+          <Input label="Unité" value={form.unit} onChange={v=>setForm({...form,unit:v})} options={["kg","L","sacs","ha","—"]} />
+          <Input label="Responsable de l'intervention" value={form.responsible} onChange={v=>setForm({...form,responsible:v})}
+            optObjects={[{value:"",label:"-- Choisir --"},...activeStaff.map(s=>({value:s.name,label:`${s.name} (${s.role})`})),{value:"Autre",label:"Autre"}]} />
+          <div style={{ gridColumn:"1/-1" }}>
+            <Input label="Notes / Observations" value={form.notes} onChange={v=>setForm({...form,notes:v})} />
+          </div>
         </div>
-        <div style={{ marginTop:14 }}><Btn onClick={save}>Enregistrer</Btn></div>
+        {form.dateStart && form.dateEnd && duration(form.dateStart,form.dateEnd) !== null && (
+          <div style={{ marginTop:10, padding:"8px 14px", background:"#EFF6FF", borderRadius:8, fontFamily:FONT, fontSize:13, fontWeight:600, color:"#1E40AF" }}>
+            ⏱️ Durée : {duration(form.dateStart,form.dateEnd)} jour(s)
+          </div>
+        )}
+        <div style={{ marginTop:14, display:"flex", gap:10 }}>
+          <Btn onClick={save}>{editing?"Enregistrer":"Ajouter"}</Btn>
+          {editing && <Btn variant="secondary" onClick={()=>{setEditing(null);setForm(emptyForm);}}>Annuler</Btn>}
+        </div>
       </Card>
       <Card>
-        <h3 style={sectionTitle}>📋 Historique ({treatments.length})</h3>
+        <div style={{ display:"flex", gap:12, marginBottom:14, flexWrap:"wrap", alignItems:"flex-end" }}>
+          <h3 style={{ ...sectionTitle, flex:1, marginBottom:0, borderBottom:"none" }}>📋 Historique ({filtered.length})</h3>
+          <select value={filterType} onChange={e=>setFilterType(e.target.value)} style={{ ...inputStyle, width:160 }}>
+            <option value="">Tous types</option>
+            {["Engrais","Traitement phytosanitaire","Irrigation","Taille","Récolte","Désherbage","Transport","Formation","Entretien","Autre"].map(t=><option key={t}>{t}</option>)}
+          </select>
+        </div>
         <div style={{ overflowX:"auto" }}>
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
             <thead>
               <tr style={{ background:C.sand }}>
-                {["Date","Site","Espèce","Type","Produit","Quantité","Notes",""].map(h=>(
-                  <th key={h} style={{ padding:"10px 11px", textAlign:"left", fontWeight:700, color:C.forest, fontFamily:FONT, fontSize:12 }}>{h}</th>
+                {["Début","Fin","Durée","Site","Espèce","Type","Produit","Qté","Responsable","Notes",""].map(h=>(
+                  <th key={h} style={{ padding:"9px 10px", textAlign:"left", fontWeight:700, color:C.forest, fontFamily:FONT, fontSize:11, whiteSpace:"nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {[...treatments].sort((a,b)=>b.date.localeCompare(a.date)).map((t,i)=>(
-                <tr key={t.id} style={{ background:i%2===0?C.white:C.cream }}>
-                  <td style={td}>{t.date}</td>
-                  <td style={td}>{siteLabel(t.site, sitesList)}</td>
-                  <td style={td}>{t.species}</td>
-                  <td style={td}>{typeIcon[t.type]||"📝"} {t.type}</td>
-                  <td style={td}>{t.product||"—"}</td>
-                  <td style={td}>{t.qty?`${t.qty} ${t.unit}`:"—"}</td>
-                  <td style={{ ...td, color:C.muted }}>{t.notes||"—"}</td>
-                  <td style={td}><Btn small variant="danger" onClick={()=>setTreatments(treatments.filter(x=>x.id!==t.id))}>🗑️</Btn></td>
-                </tr>
-              ))}
+              {[...filtered].sort((a,b)=>b.dateStart.localeCompare(a.dateStart)).map((t,i)=>{
+                const dur = duration(t.dateStart, t.dateEnd);
+                return (
+                  <tr key={t.id} style={{ background:i%2===0?C.white:C.cream }}>
+                    <td style={td}>{t.dateStart}</td>
+                    <td style={td}>{t.dateEnd||"—"}</td>
+                    <td style={td}>{dur!==null?<Badge color="green">{dur}j</Badge>:"—"}</td>
+                    <td style={td}>{siteLabel(t.site,sitesList)}</td>
+                    <td style={td}>{t.species}</td>
+                    <td style={td}>{typeIcon[t.type]||"📝"} {t.type}</td>
+                    <td style={td}>{t.product||"—"}</td>
+                    <td style={td}>{t.qty?`${t.qty} ${t.unit}`:"—"}</td>
+                    <td style={{ ...td, fontWeight:600 }}>{t.responsible||"—"}</td>
+                    <td style={{ ...td, color:C.muted, fontSize:11 }}>{t.notes||"—"}</td>
+                    <td style={td}>
+                      <div style={{ display:"flex", gap:5 }}>
+                        <Btn small variant="secondary" onClick={()=>{setForm({...t,qty:String(t.qty)});setEditing(t.id);}}>✏️</Btn>
+                        <Btn small variant="danger" onClick={()=>setTreatments(treatments.filter(x=>x.id!==t.id))}>🗑️</Btn>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1108,14 +1154,60 @@ function NurseryModule({ batches, setBatches, graftings, setGraftings, species, 
 // ─── MODULE : RH & Charges ───────────────────────────────────────────────────
 const ROLES = ["Chef de site","Greffeur","Responsable pépinière","Chauffeur","Magasinier","Comptable","Ouvrière agricole","Ouvrier agricole","Gardien","Autre"];
 const TASKS_TEMP = ["Récolte","Désherbage","Application engrais","Taille","Greffage","Semis pépinière","Irrigation manuelle","Transport","Conditionnement","Autre"];
+// ─── MODULE : RH & Charges (enrichi) ─────────────────────────────────────────
+const ROLES = ["Chef de site","Greffeur","Responsable pépinière","Chauffeur","Magasinier","Comptable","Ouvrière agricole","Ouvrier agricole","Gardien","Autre"];
+const TASKS_TEMP = ["Récolte","Désherbage","Application engrais","Taille","Greffage","Semis pépinière","Irrigation manuelle","Transport","Conditionnement","Autre"];
+
+const StaffCard = ({ s, onEdit, onDelete }) => (
+  <div style={{ background:C.white, borderRadius:14, padding:16, boxShadow:"0 2px 8px rgba(0,0,0,0.06)", borderTop:`4px solid ${s.status==="Actif"?C.green:C.amber}` }}>
+    <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
+      {/* Photo ou avatar */}
+      <div style={{ flexShrink:0 }}>
+        {s.photoUrl ? (
+          <img src={s.photoUrl} alt={s.name} style={{ width:56, height:56, borderRadius:"50%", objectFit:"cover", border:`3px solid ${C.sand}` }} onError={e=>e.target.style.display="none"} />
+        ) : (
+          <div style={{ width:56, height:56, borderRadius:"50%", background:C.sand, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, border:`3px solid ${C.mint}` }}>👤</div>
+        )}
+      </div>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontFamily:FONT, fontWeight:800, fontSize:15, color:C.forest }}>{s.name}</div>
+        <div style={{ fontFamily:FONT, fontSize:12, color:C.muted }}>{s.role} · {s.site}</div>
+        <div style={{ fontFamily:FONT, fontSize:12, color:C.forest, fontWeight:600, marginTop:2 }}>{s.salary?.toLocaleString()} FCFA/mois</div>
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
+        <Badge color={s.status==="Actif"?"green":"amber"}>{s.status}</Badge>
+        <div style={{ display:"flex", gap:4, marginTop:4 }}>
+          <Btn small variant="secondary" onClick={onEdit}>✏️</Btn>
+          <Btn small variant="danger" onClick={onDelete}>🗑️</Btn>
+        </div>
+      </div>
+    </div>
+    {/* Infos complémentaires */}
+    <div style={{ marginTop:10, display:"flex", flexWrap:"wrap", gap:8, fontSize:11, fontFamily:FONT }}>
+      {s.phone && <span style={{ background:C.cream, padding:"3px 8px", borderRadius:6 }}>📱 {s.phone}</span>}
+      {s.startDate && <span style={{ background:C.cream, padding:"3px 8px", borderRadius:6 }}>📅 Depuis {s.startDate}</span>}
+      {s.cniNum && <span style={{ background:C.cream, padding:"3px 8px", borderRadius:6 }}>🪪 CNI: {s.cniNum}</span>}
+    </div>
+    {/* Liens documents */}
+    <div style={{ marginTop:8, display:"flex", flexWrap:"wrap", gap:8 }}>
+      {s.cniUrl && <a href={s.cniUrl} target="_blank" rel="noreferrer" style={{ fontSize:11, color:C.green, fontFamily:FONT, fontWeight:600, textDecoration:"none" }}>🪪 Voir CNI</a>}
+      {s.photoUrl && <a href={s.photoUrl} target="_blank" rel="noreferrer" style={{ fontSize:11, color:C.green, fontFamily:FONT, fontWeight:600, textDecoration:"none" }}>🖼️ Photo</a>}
+      {s.doc1Url && <a href={s.doc1Url} target="_blank" rel="noreferrer" style={{ fontSize:11, color:C.green, fontFamily:FONT, fontWeight:600, textDecoration:"none" }}>📎 {s.doc1Label||"Document 1"}</a>}
+      {s.doc2Url && <a href={s.doc2Url} target="_blank" rel="noreferrer" style={{ fontSize:11, color:C.green, fontFamily:FONT, fontWeight:600, textDecoration:"none" }}>📎 {s.doc2Label||"Document 2"}</a>}
+    </div>
+    {s.notes && <div style={{ marginTop:6, fontSize:11, color:C.muted, fontStyle:"italic", fontFamily:FONT }}>{s.notes}</div>}
+  </div>
+);
 
 function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setCharges, sitesList }) {
   const [subTab, setSubTab] = useState("dashboard_rh");
-  const [sForm, setSForm] = useState({ name:"", role:"", site:"", salary:"", startDate:"", status:"Actif", phone:"", notes:"" });
+  const emptyStaff = { name:"", role:"", site:"", salary:"", startDate:"", status:"Actif", phone:"", cniNum:"", cniUrl:"", photoUrl:"", doc1Url:"", doc1Label:"", doc2Url:"", doc2Label:"", notes:"" };
+  const [sForm, setSForm] = useState(emptyStaff);
   const [editingS, setEditingS] = useState(null);
   const [tForm, setTForm] = useState({ date:"", site:"", task:"", nbWorkers:"", nbDays:"", dailyRate:"", notes:"" });
   const [cForm, setCForm] = useState({ date:"", category:"", label:"", site:"Tous", amount:"", paid:false, notes:"" });
   const [editingC, setEditingC] = useState(null);
+  const [staffView, setStaffView] = useState("cards"); // cards | table
 
   const monthlyPayroll = staff.filter(s=>s.status==="Actif").reduce((s,e)=>s+e.salary,0);
   const totalTempCost  = tempWork.reduce((s,t)=>s+t.total,0);
@@ -1125,16 +1217,14 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
     if (!sForm.name||!sForm.role||!sForm.salary) return;
     const entry = { ...sForm, id:editingS||Date.now(), salary:+sForm.salary };
     setStaff(editingS?staff.map(s=>s.id===editingS?entry:s):[...staff,entry]);
-    setEditingS(null); setSForm({ name:"", role:"", site:"", salary:"", startDate:"", status:"Actif", phone:"", notes:"" });
+    setEditingS(null); setSForm(emptyStaff);
   };
-
   const saveTempWork = () => {
     if (!tForm.date||!tForm.task||!tForm.nbWorkers||!tForm.dailyRate) return;
     const total = +tForm.nbWorkers * +tForm.nbDays * +tForm.dailyRate;
     setTempWork([...tempWork, { ...tForm, id:Date.now(), nbWorkers:+tForm.nbWorkers, nbDays:+tForm.nbDays, dailyRate:+tForm.dailyRate, total }]);
     setTForm({ date:"", site:"", task:"", nbWorkers:"", nbDays:"", dailyRate:"", notes:"" });
   };
-
   const saveCharge = () => {
     if (!cForm.date||!cForm.category||!cForm.amount) return;
     const entry = { ...cForm, id:editingC||Date.now(), amount:+cForm.amount };
@@ -1142,7 +1232,7 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
     setEditingC(null); setCForm({ date:"", category:"", label:"", site:"Tous", amount:"", paid:false, notes:"" });
   };
 
-  const exportStaffRows = staff.map(s=>[s.name,s.role,s.site,s.salary,s.startDate,s.status,s.phone||"—"]);
+  const exportStaffRows = staff.map(s=>[s.name,s.role,s.site,s.salary,s.startDate,s.status,s.phone||"—",s.cniNum||"—"]);
   const exportTempRows  = [...tempWork].sort((a,b)=>b.date.localeCompare(a.date)).map(t=>[t.date,t.site,t.task,t.nbWorkers,t.nbDays,t.dailyRate,t.total]);
   const exportChargeRows= [...charges].sort((a,b)=>b.date.localeCompare(a.date)).map(c=>[c.date,c.category,c.label,c.site,c.amount,c.paid?"Payé":"À payer",c.notes||"—"]);
 
@@ -1159,8 +1249,8 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12 }}>
         <StatCard icon="👷" label="Masse salariale/mois" value={`${(monthlyPayroll/1000).toFixed(0)}K`} sub={`${staff.filter(s=>s.status==="Actif").length} permanents`} color="#DBEAFE" />
         <StatCard icon="👥" label="MO temporaire total" value={`${(totalTempCost/1000).toFixed(0)}K`} color="#FEF9C3" />
-        <StatCard icon="📋" label="Charges enregistrées" value={`${(charges.reduce((s,c)=>s+c.amount,0)/1000).toFixed(0)}K`} color="#FCE7F3" />
-        <StatCard icon="⚠️" label="Charges impayées" value={`${(unpaidCharges/1000).toFixed(0)}K`} color="#FEE2E2" />
+        <StatCard icon="📋" label="Charges totales" value={`${(charges.reduce((s,c)=>s+c.amount,0)/1000).toFixed(0)}K`} color="#FCE7F3" />
+        <StatCard icon="⚠️" label="Impayées" value={`${(unpaidCharges/1000).toFixed(0)}K`} color="#FEE2E2" />
       </div>
 
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", borderBottom:`2px solid ${C.sand}` }}>
@@ -1169,6 +1259,7 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
         ))}
       </div>
 
+      {/* ── Dashboard RH ── */}
       {subTab==="dashboard_rh" && (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:16 }}>
           <Card>
@@ -1179,7 +1270,7 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
               return (
                 <div key={s.code} style={{ marginBottom:12 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:4, fontFamily:FONT }}>
-                    <span style={{ fontWeight:600 }}>{s.code} — {s.name} <span style={{ color:C.muted, fontWeight:400 }}>({nb} pers.)</span></span>
+                    <span style={{ fontWeight:600 }}>{s.code} — {s.name} <span style={{ color:C.muted, fontWeight:400 }}>({nb})</span></span>
                     <span style={{ fontWeight:700, color:C.forest }}>{siteSalary.toLocaleString()} F</span>
                   </div>
                   <div style={{ height:7, background:C.sand, borderRadius:4 }}>
@@ -1194,13 +1285,12 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
             </div>
           </Card>
           <Card>
-            <h3 style={sectionTitle}>📋 Charges par catégorie</h3>
+            <h3 style={sectionTitle}>📋 Top charges par catégorie</h3>
             {CHARGE_CATEGORIES.map(cat=>{
               const amt = charges.filter(c=>c.category===cat).reduce((s,c)=>s+c.amount,0);
               return amt>0?(
                 <div key={cat} style={{ display:"flex", justifyContent:"space-between", padding:"7px 0", borderBottom:`1px solid ${C.sand}`, fontFamily:FONT, fontSize:13 }}>
-                  <span>{cat}</span>
-                  <span style={{ fontWeight:700, color:C.bark }}>{amt.toLocaleString()} F</span>
+                  <span>{cat}</span><span style={{ fontWeight:700, color:C.bark }}>{amt.toLocaleString()} F</span>
                 </div>
               ):null;
             })}
@@ -1208,69 +1298,115 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
         </div>
       )}
 
+      {/* ── Permanents ── */}
       {subTab==="permanent" && (
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-          <ExportBar title="Personnel Permanent" headers={["Nom","Poste","Site","Salaire/mois","Embauche","Statut","Tél."]} rows={exportStaffRows} extraInfo={[{label:"Masse salariale",val:monthlyPayroll.toLocaleString()+" FCFA/mois"}]} filename="personnel" />
+          <ExportBar title="Personnel Permanent" headers={["Nom","Poste","Site","Salaire","Embauche","Statut","Tél.","CNI"]} rows={exportStaffRows} extraInfo={[{label:"Masse salariale",val:monthlyPayroll.toLocaleString()+" FCFA/mois"}]} filename="personnel" />
           <Card>
-            <h3 style={sectionTitle}>{editingS?"✏️ Modifier":"➕ Ajouter un employé"}</h3>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:12 }}>
+            <h3 style={sectionTitle}>{editingS?"✏️ Modifier l'employé":"➕ Ajouter un employé permanent"}</h3>
+            {/* Info URL */}
+            <div style={{ marginBottom:12, padding:"8px 12px", background:"#EFF6FF", borderRadius:8, fontSize:12, fontFamily:FONT, color:"#1E40AF" }}>
+              💡 Pour les photos et documents : colle le lien de partage Google Drive, Dropbox ou tout autre service cloud.
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
               <Input label="Nom complet" value={sForm.name} onChange={v=>setSForm({...sForm,name:v})} />
-              <Input label="Poste" value={sForm.role} onChange={v=>setSForm({...sForm,role:v})} options={ROLES} />
+              <Input label="Poste / Rôle" value={sForm.role} onChange={v=>setSForm({...sForm,role:v})} options={ROLES} />
               <Input label="Site affecté" value={sForm.site} onChange={v=>setSForm({...sForm,site:v})} optObjects={[...siteOptions(sitesList),{value:"Tous sites",label:"Tous sites"}]} />
               <Input label="Salaire mensuel (FCFA)" type="number" value={sForm.salary} onChange={v=>setSForm({...sForm,salary:v})} />
-              <Input label="Date embauche" type="date" value={sForm.startDate} onChange={v=>setSForm({...sForm,startDate:v})} />
+              <Input label="Date d'embauche" type="date" value={sForm.startDate} onChange={v=>setSForm({...sForm,startDate:v})} />
               <Input label="Téléphone" value={sForm.phone} onChange={v=>setSForm({...sForm,phone:v})} />
               <Input label="Statut" value={sForm.status} onChange={v=>setSForm({...sForm,status:v})} options={["Actif","Congé","Suspendu","Parti"]} />
+              <Input label="Numéro CNI" value={sForm.cniNum} onChange={v=>setSForm({...sForm,cniNum:v})} />
+              <Input label="Lien photo (URL)" value={sForm.photoUrl} onChange={v=>setSForm({...sForm,photoUrl:v})} />
+              <Input label="Lien scan CNI (URL)" value={sForm.cniUrl} onChange={v=>setSForm({...sForm,cniUrl:v})} />
+              <Input label="Lien document 1 (URL)" value={sForm.doc1Url} onChange={v=>setSForm({...sForm,doc1Url:v})} />
+              <Input label="Libellé document 1" value={sForm.doc1Label} onChange={v=>setSForm({...sForm,doc1Label:v})} />
+              <Input label="Lien document 2 (URL)" value={sForm.doc2Url} onChange={v=>setSForm({...sForm,doc2Url:v})} />
+              <Input label="Libellé document 2" value={sForm.doc2Label} onChange={v=>setSForm({...sForm,doc2Label:v})} />
+              <div style={{ gridColumn:"1/-1" }}>
+                <Input label="Notes" value={sForm.notes} onChange={v=>setSForm({...sForm,notes:v})} />
+              </div>
             </div>
             <div style={{ marginTop:14, display:"flex", gap:10 }}>
               <Btn onClick={saveStaff}>{editingS?"Enregistrer":"Ajouter"}</Btn>
-              {editingS&&<Btn variant="secondary" onClick={()=>{setEditingS(null);setSForm({name:"",role:"",site:"",salary:"",startDate:"",status:"Actif",phone:"",notes:""});}}>Annuler</Btn>}
+              {editingS&&<Btn variant="secondary" onClick={()=>{setEditingS(null);setSForm(emptyStaff);}}>Annuler</Btn>}
             </div>
           </Card>
           <Card>
-            <h3 style={sectionTitle}>👷 Personnel — {monthlyPayroll.toLocaleString()} FCFA/mois</h3>
-            <div style={{ overflowX:"auto" }}>
-              <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                <thead>
-                  <tr style={{ background:C.sand }}>
-                    {["Nom","Poste","Site","Salaire/mois","Embauche","Statut",""].map(h=>(
-                      <th key={h} style={{ padding:"10px 11px", textAlign:"left", fontWeight:700, color:C.forest, fontFamily:FONT, fontSize:12, whiteSpace:"nowrap" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {staff.map((s,i)=>(
-                    <tr key={s.id} style={{ background:i%2===0?C.white:C.cream }}>
-                      <td style={{ ...td, fontWeight:700 }}>{s.name}</td>
-                      <td style={td}><Badge color="amber">{s.role}</Badge></td>
-                      <td style={td}>{s.site}</td>
-                      <td style={{ ...td, fontWeight:700 }}>{s.salary.toLocaleString()} F</td>
-                      <td style={td}>{s.startDate}</td>
-                      <td style={td}><Badge color={s.status==="Actif"?"green":"amber"}>{s.status}</Badge></td>
-                      <td style={td}>
-                        <div style={{ display:"flex", gap:5 }}>
-                          <Btn small variant="secondary" onClick={()=>{setSForm({...s,salary:String(s.salary)});setEditingS(s.id);}}>✏️</Btn>
-                          <Btn small variant="danger" onClick={()=>setStaff(staff.filter(x=>x.id!==s.id))}>🗑️</Btn>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+              <h3 style={{ ...sectionTitle, marginBottom:0, borderBottom:"none" }}>👷 Personnel ({staff.length}) — {monthlyPayroll.toLocaleString()} FCFA/mois</h3>
+              <div style={{ display:"flex", gap:6 }}>
+                {[{id:"cards",label:"🪪 Fiches"},{id:"table",label:"📋 Tableau"}].map(v=>(
+                  <button key={v.id} onClick={()=>setStaffView(v.id)} style={{ background:staffView===v.id?C.green:C.sand, color:staffView===v.id?C.white:C.forest, border:"none", borderRadius:7, padding:"5px 12px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:FONT }}>{v.label}</button>
+                ))}
+              </div>
             </div>
+            {staffView==="cards" ? (
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:14 }}>
+                {staff.map(s=>(
+                  <StaffCard key={s.id} s={s}
+                    onEdit={()=>{setSForm({...s,salary:String(s.salary)});setEditingS(s.id);}}
+                    onDelete={()=>setStaff(staff.filter(x=>x.id!==s.id))} />
+                ))}
+              </div>
+            ) : (
+              <div style={{ overflowX:"auto" }}>
+                <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                  <thead>
+                    <tr style={{ background:C.sand }}>
+                      {["Photo","Nom","Poste","Site","Salaire/mois","CNI","Embauche","Statut","Docs",""].map(h=>(
+                        <th key={h} style={{ padding:"9px 10px", textAlign:"left", fontWeight:700, color:C.forest, fontFamily:FONT, fontSize:11, whiteSpace:"nowrap" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {staff.map((s,i)=>(
+                      <tr key={s.id} style={{ background:i%2===0?C.white:C.cream }}>
+                        <td style={td}>
+                          {s.photoUrl
+                            ? <img src={s.photoUrl} alt="" style={{ width:36, height:36, borderRadius:"50%", objectFit:"cover" }} onError={e=>e.target.style.display="none"} />
+                            : <div style={{ width:36, height:36, borderRadius:"50%", background:C.sand, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>👤</div>
+                          }
+                        </td>
+                        <td style={{ ...td, fontWeight:700 }}>{s.name}</td>
+                        <td style={td}><Badge color="amber">{s.role}</Badge></td>
+                        <td style={td}>{s.site}</td>
+                        <td style={{ ...td, fontWeight:700 }}>{s.salary?.toLocaleString()} F</td>
+                        <td style={{ ...td, fontSize:11 }}>{s.cniNum||"—"}</td>
+                        <td style={td}>{s.startDate}</td>
+                        <td style={td}><Badge color={s.status==="Actif"?"green":"amber"}>{s.status}</Badge></td>
+                        <td style={td}>
+                          <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+                            {s.cniUrl&&<a href={s.cniUrl} target="_blank" rel="noreferrer" style={{ fontSize:10, color:C.green, textDecoration:"none", fontWeight:600 }}>🪪 CNI</a>}
+                            {s.doc1Url&&<a href={s.doc1Url} target="_blank" rel="noreferrer" style={{ fontSize:10, color:C.green, textDecoration:"none", fontWeight:600 }}>📎</a>}
+                          </div>
+                        </td>
+                        <td style={td}>
+                          <div style={{ display:"flex", gap:5 }}>
+                            <Btn small variant="secondary" onClick={()=>{setSForm({...s,salary:String(s.salary)});setEditingS(s.id);}}>✏️</Btn>
+                            <Btn small variant="danger" onClick={()=>setStaff(staff.filter(x=>x.id!==s.id))}>🗑️</Btn>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Card>
         </div>
       )}
 
+      {/* ── Temporaires ── */}
       {subTab==="temp" && (
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-          <ExportBar title="Main d'Oeuvre Temporaire" headers={["Date","Site","Tâche","Personnes","Jours","Taux/j","Total"]} rows={exportTempRows} extraInfo={[{label:"Total",val:totalTempCost.toLocaleString()+" FCFA"}]} filename="mo_temporaire" />
+          <ExportBar title="Main d'Oeuvre Temporaire" headers={["Date","Site","Tâche","Pers.","Jours","Taux/j","Total"]} rows={exportTempRows} extraInfo={[{label:"Total",val:totalTempCost.toLocaleString()+" FCFA"}]} filename="mo_temporaire" />
           <Card>
-            <h3 style={sectionTitle}>➕ Enregistrer une prestation</h3>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12 }}>
+            <h3 style={sectionTitle}>➕ Enregistrer une prestation temporaire</h3>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
               <Input label="Date" type="date" value={tForm.date} onChange={v=>setTForm({...tForm,date:v})} />
               <Input label="Site" value={tForm.site} onChange={v=>setTForm({...tForm,site:v})} optObjects={siteOptions(sitesList)} />
-              <Input label="Tâche" value={tForm.task} onChange={v=>setTForm({...tForm,task:v})} options={TASKS_TEMP} />
+              <Input label="Tâche effectuée" value={tForm.task} onChange={v=>setTForm({...tForm,task:v})} options={TASKS_TEMP} />
               <Input label="Nb personnes" type="number" value={tForm.nbWorkers} onChange={v=>setTForm({...tForm,nbWorkers:v})} />
               <Input label="Nb jours" type="number" value={tForm.nbDays} onChange={v=>setTForm({...tForm,nbDays:v})} />
               <Input label="Taux journalier (FCFA)" type="number" value={tForm.dailyRate} onChange={v=>setTForm({...tForm,dailyRate:v})} />
@@ -1278,48 +1414,40 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
             </div>
             {tForm.nbWorkers&&tForm.nbDays&&tForm.dailyRate&&(
               <div style={{ marginTop:10, padding:"8px 14px", background:"#DBEAFE", borderRadius:8, fontFamily:FONT, fontSize:13, fontWeight:600, color:"#1E40AF" }}>
-                💡 Total : {(+tForm.nbWorkers * +tForm.nbDays * +tForm.dailyRate).toLocaleString()} FCFA
+                💡 Total calculé : {(+tForm.nbWorkers * +tForm.nbDays * +tForm.dailyRate).toLocaleString()} FCFA
               </div>
             )}
             <div style={{ marginTop:14 }}><Btn onClick={saveTempWork}>Enregistrer</Btn></div>
           </Card>
           <Card>
-            <h3 style={sectionTitle}>👥 Historique — Total : {totalTempCost.toLocaleString()} FCFA</h3>
+            <h3 style={sectionTitle}>👥 Historique MO temporaire — Total : {totalTempCost.toLocaleString()} FCFA</h3>
             <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                <thead>
-                  <tr style={{ background:C.sand }}>
-                    {["Date","Site","Tâche","Pers.","Jours","Taux/j","Total",""].map(h=>(
-                      <th key={h} style={{ padding:"10px 11px", textAlign:"left", fontWeight:700, color:C.forest, fontFamily:FONT, fontSize:12, whiteSpace:"nowrap" }}>{h}</th>
-                    ))}
+                <thead><tr style={{ background:C.sand }}>{["Date","Site","Tâche","Pers.","Jours","Taux/j","Total",""].map(h=><th key={h} style={{ padding:"9px 10px", textAlign:"left", fontWeight:700, color:C.forest, fontFamily:FONT, fontSize:11, whiteSpace:"nowrap" }}>{h}</th>)}</tr></thead>
+                <tbody>{[...tempWork].sort((a,b)=>b.date.localeCompare(a.date)).map((t,i)=>(
+                  <tr key={t.id} style={{ background:i%2===0?C.white:C.cream }}>
+                    <td style={td}>{t.date}</td><td style={td}>{siteLabel(t.site,sitesList)}</td>
+                    <td style={td}><Badge color="amber">{t.task}</Badge></td>
+                    <td style={{ ...td, textAlign:"center" }}>{t.nbWorkers}</td>
+                    <td style={{ ...td, textAlign:"center" }}>{t.nbDays}</td>
+                    <td style={td}>{t.dailyRate.toLocaleString()} F</td>
+                    <td style={{ ...td, fontWeight:700 }}>{t.total.toLocaleString()} F</td>
+                    <td style={td}><Btn small variant="danger" onClick={()=>setTempWork(tempWork.filter(x=>x.id!==t.id))}>🗑️</Btn></td>
                   </tr>
-                </thead>
-                <tbody>
-                  {[...tempWork].sort((a,b)=>b.date.localeCompare(a.date)).map((t,i)=>(
-                    <tr key={t.id} style={{ background:i%2===0?C.white:C.cream }}>
-                      <td style={td}>{t.date}</td>
-                      <td style={td}>{t.site}</td>
-                      <td style={td}><Badge color="amber">{t.task}</Badge></td>
-                      <td style={{ ...td, textAlign:"center" }}>{t.nbWorkers}</td>
-                      <td style={{ ...td, textAlign:"center" }}>{t.nbDays}</td>
-                      <td style={td}>{t.dailyRate.toLocaleString()} F</td>
-                      <td style={{ ...td, fontWeight:700 }}>{t.total.toLocaleString()} F</td>
-                      <td style={td}><Btn small variant="danger" onClick={()=>setTempWork(tempWork.filter(x=>x.id!==t.id))}>🗑️</Btn></td>
-                    </tr>
-                  ))}
-                </tbody>
+                ))}</tbody>
               </table>
             </div>
           </Card>
         </div>
       )}
 
+      {/* ── Charges ── */}
       {subTab==="charges" && (
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-          <ExportBar title="Charges d'Exploitation" headers={["Date","Catégorie","Libellé","Site","Montant","Statut","Notes"]} rows={exportChargeRows} extraInfo={[{label:"Total",val:charges.reduce((s,c)=>s+c.amount,0).toLocaleString()+" FCFA"},{label:"Impayé",val:unpaidCharges.toLocaleString()+" FCFA"}]} filename="charges" />
+          <ExportBar title="Charges" headers={["Date","Catégorie","Libellé","Site","Montant","Statut","Notes"]} rows={exportChargeRows} extraInfo={[{label:"Total",val:charges.reduce((s,c)=>s+c.amount,0).toLocaleString()+" FCFA"}]} filename="charges" />
           <Card>
             <h3 style={sectionTitle}>{editingC?"✏️ Modifier":"➕ Saisir une charge"}</h3>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:12 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
               <Input label="Date" type="date" value={cForm.date} onChange={v=>setCForm({...cForm,date:v})} />
               <Input label="Catégorie" value={cForm.category} onChange={v=>setCForm({...cForm,category:v})} options={CHARGE_CATEGORIES} />
               <Input label="Libellé" value={cForm.label} onChange={v=>setCForm({...cForm,label:v})} />
@@ -1329,8 +1457,7 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
             </div>
             <div style={{ marginTop:12, display:"flex", alignItems:"center", gap:10 }}>
               <label style={{ fontSize:13, display:"flex", alignItems:"center", gap:6, cursor:"pointer", fontFamily:FONT }}>
-                <input type="checkbox" checked={cForm.paid} onChange={e=>setCForm({...cForm,paid:e.target.checked})} />
-                Déjà payé / décaissé
+                <input type="checkbox" checked={cForm.paid} onChange={e=>setCForm({...cForm,paid:e.target.checked})} /> Déjà payé
               </label>
             </div>
             <div style={{ marginTop:14, display:"flex", gap:10 }}>
@@ -1342,33 +1469,355 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
             <h3 style={sectionTitle}>📋 Journal des charges</h3>
             <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                <thead><tr style={{ background:C.sand }}>{["Date","Catégorie","Libellé","Site","Montant","Statut","Notes",""].map(h=><th key={h} style={{ padding:"9px 10px", textAlign:"left", fontWeight:700, color:C.forest, fontFamily:FONT, fontSize:11, whiteSpace:"nowrap" }}>{h}</th>)}</tr></thead>
+                <tbody>{[...charges].sort((a,b)=>b.date.localeCompare(a.date)).map((c,i)=>(
+                  <tr key={c.id} style={{ background:i%2===0?C.white:C.cream }}>
+                    <td style={td}>{c.date}</td>
+                    <td style={td}><Badge color="amber">{c.category}</Badge></td>
+                    <td style={{ ...td, fontWeight:600 }}>{c.label}</td>
+                    <td style={td}>{c.site}</td>
+                    <td style={{ ...td, fontWeight:700 }}>{c.amount.toLocaleString()} F</td>
+                    <td style={td}><span onClick={()=>setCharges(charges.map(x=>x.id===c.id?{...x,paid:!x.paid}:x))} style={{ cursor:"pointer" }}><Badge color={c.paid?"green":"amber"}>{c.paid?"✅ Payé":"⏳ À payer"}</Badge></span></td>
+                    <td style={{ ...td, color:C.muted, fontSize:11 }}>{c.notes||"—"}</td>
+                    <td style={td}><div style={{ display:"flex", gap:5 }}><Btn small variant="secondary" onClick={()=>{setCForm({...c,amount:String(c.amount)});setEditingC(c.id);}}>✏️</Btn><Btn small variant="danger" onClick={()=>setCharges(charges.filter(x=>x.id!==c.id))}>🗑️</Btn></div></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Synthèse ── */}
+      {subTab==="synthese" && (
+        <Card>
+          <h3 style={sectionTitle}>💹 Structure des coûts</h3>
+          {[
+            { label:"Personnel permanent", amount:monthlyPayroll*12, color:"#3B82F6" },
+            { label:"MO temporaire", amount:totalTempCost, color:C.amber },
+            ...CHARGE_CATEGORIES.map((cat,i)=>({ label:cat, amount:charges.filter(c=>c.category===cat).reduce((s,c)=>s+c.amount,0), color:`hsl(${120+i*20},50%,45%)` }))
+          ].filter(x=>x.amount>0).map(x=>{
+            const total = monthlyPayroll*12+totalTempCost+charges.reduce((s,c)=>s+c.amount,0);
+            const pct = total>0?(x.amount/total*100):0;
+            return (
+              <div key={x.label} style={{ marginBottom:10 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:3, fontFamily:FONT }}>
+                  <span>{x.label}</span>
+                  <span style={{ fontWeight:700 }}>{x.amount.toLocaleString()} F ({pct.toFixed(1)}%)</span>
+                </div>
+                <div style={{ height:7, background:C.sand, borderRadius:4 }}>
+                  <div style={{ height:7, width:`${pct}%`, background:x.color, borderRadius:4 }} />
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── MODULE : 📦 Actifs & Stocks ─────────────────────────────────────────────
+
+// ── Catégories d'actifs
+const ASSET_CATEGORIES = {
+  "Matériel roulant":    { icon:"🚜", items:["Tracteur","Motopompe","Véhicule pick-up","Moto","Remorque","Groupe électrogène","Autre"] },
+  "Équipement fixe":     { icon:"🏭", items:["Serre","Bâtiment stockage","Forage","Château d'eau","Clôture","Autre"] },
+  "Petit matériel":      { icon:"🔧", items:["Machette","Houe","Sécateur","Plantoir","Pulvérisateur","Tronçonneuse","Arrosoir","Brouette","Pelle","Pioche","Autre"] },
+  "EPI":                 { icon:"🦺", items:["Tenue de travail","Bottes","Gants","Casque","Lunettes","Masque","Tablier","Autre"] },
+  "Intrants agricoles":  { icon:"🌿", items:["Engrais NPK","Engrais foliaire","Engrais granulé","Fumier/Compost","Biofertilisant","Insecticide","Fongicide","Herbicide","Nématicide","Autre"] },
+  "Semences & Plants":   { icon:"🌱", items:["Semences","Plants greffés","Porte-greffe","Autre"] },
+  "Emballage":           { icon:"📦", items:["Caisses bois","Caisses plastique","Sacs","Filets","Cartons","Autre"] },
+  "Outillage bureau":    { icon:"💼", items:["Ordinateur","Imprimante","Tablette","Téléphone","GPS","Balance","Autre"] },
+};
+
+const ASSET_STATUSES = ["Disponible","En service","En maintenance","Hors service","Mis au rebut","Introuvable","Prêté"];
+const STOCK_UNITS = ["kg","L","sacs","unités","bottes","rouleaux","m","m²"];
+
+// Données initiales actifs
+const initialAssets = [
+  { id:1, ref:"MAT-001", category:"Matériel roulant", item:"Tracteur", brand:"Massey Ferguson", model:"MF 135", site:"Site A", qty:1, unit:"unités", purchaseDate:"2019-03-15", purchaseValue:8500000, currentValue:5000000, status:"En service", responsible:"Jean-Baptiste Mballa", serialNum:"MF135-CAM-019", notes:"Révision annuelle mars", docUrl:"", lastInventory:"2024-01-15" },
+  { id:2, ref:"EPI-001", category:"EPI", item:"Tenue de travail", brand:"", model:"", site:"Site A", qty:5, unit:"unités", purchaseDate:"2023-06-01", purchaseValue:75000, currentValue:40000, status:"Disponible", responsible:"", serialNum:"", notes:"Tailles M et L", docUrl:"", lastInventory:"2024-01-15", assignedTo:"" },
+  { id:3, ref:"INT-001", category:"Intrants agricoles", item:"Engrais NPK", brand:"SoilFert", model:"20-10-10", site:"Site A", qty:200, unit:"kg", purchaseDate:"2024-02-01", purchaseValue:50000, currentValue:50000, status:"Disponible", responsible:"", serialNum:"", notes:"Stock actuel", docUrl:"", lastInventory:"2024-02-01", minStock:50 },
+];
+
+// Données mouvements de stock
+const initialStockMoves = [
+  { id:1, date:"2024-02-15", assetId:3, assetRef:"INT-001", type:"Sortie", qty:50, unit:"kg", site:"Site A", operator:"Paul Etoga", reason:"Application parcelle Hass", notes:"" },
+];
+
+function AssetsModule({ sitesList, staff }) {
+  const [assets, setAssets]         = useState(()=>loadLS("vs_assets", initialAssets));
+  const [stockMoves, setStockMoves] = useState(()=>loadLS("vs_stock_moves", initialStockMoves));
+  const [subTab, setSubTab]         = useState("inventory");
+  const [filterCat, setFilterCat]   = useState("");
+  const [filterSite, setFilterSite] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+
+  const emptyAsset = { ref:"", category:"", item:"", brand:"", model:"", site:"", qty:"1", unit:"unités", purchaseDate:"", purchaseValue:"", currentValue:"", status:"Disponible", responsible:"", serialNum:"", notes:"", docUrl:"", lastInventory:"", minStock:"", assignedTo:"" };
+  const [form, setForm] = useState(emptyAsset);
+  const [editing, setEditing] = useState(null);
+
+  const emptyMove = { date:"", assetId:"", type:"Sortie", qty:"", unit:"", operator:"", reason:"", notes:"" };
+  const [moveForm, setMoveForm] = useState(emptyMove);
+
+  const activeStaff = staff.filter(s => s.status === "Actif");
+
+  // Save helpers
+  const saveAsset = () => {
+    if (!form.ref||!form.category||!form.item||!form.site) return;
+    const entry = { ...form, id:editing||Date.now(), qty:+form.qty, purchaseValue:+form.purchaseValue||0, currentValue:+form.currentValue||0, minStock:+form.minStock||0 };
+    const updated = editing?assets.map(a=>a.id===editing?entry:a):[...assets,entry];
+    setAssets(updated); saveLS("vs_assets",updated); setEditing(null); setForm(emptyAsset);
+  };
+  const delAsset = id => { const u=assets.filter(a=>a.id!==id); setAssets(u); saveLS("vs_assets",u); };
+
+  const saveMove = () => {
+    if (!moveForm.date||!moveForm.assetId||!moveForm.qty) return;
+    const asset = assets.find(a=>a.id===+moveForm.assetId);
+    if (!asset) return;
+    const delta = moveForm.type==="Entrée"?+moveForm.qty:-+moveForm.qty;
+    const newQty = Math.max(0, asset.qty + delta);
+    const updAssets = assets.map(a=>a.id===+moveForm.assetId?{...a,qty:newQty}:a);
+    const entry = { ...moveForm, id:Date.now(), assetRef:asset.ref, qty:+moveForm.qty, unit:asset.unit };
+    const updMoves = [...stockMoves, entry];
+    setAssets(updAssets); saveLS("vs_assets",updAssets);
+    setStockMoves(updMoves); saveLS("vs_stock_moves",updMoves);
+    setMoveForm(emptyMove);
+  };
+
+  // Filtered assets
+  const filtered = assets
+    .filter(a=>!filterCat||a.category===filterCat)
+    .filter(a=>!filterSite||a.site===filterSite)
+    .filter(a=>!filterStatus||a.status===filterStatus);
+
+  // Alerts: low stock
+  const lowStockAlerts = assets.filter(a=>a.minStock>0&&a.qty<=a.minStock);
+  const totalValue = assets.reduce((s,a)=>s+a.currentValue,0);
+  const totalPurchase = assets.reduce((s,a)=>s+a.purchaseValue,0);
+
+  // Export
+  const exportRows = filtered.map(a=>[a.ref,a.category,a.item,a.brand||"—",a.model||"—",siteLabel(a.site,sitesList),a.qty,a.unit,a.status,a.purchaseDate||"—",(a.purchaseValue||0).toLocaleString(),(a.currentValue||0).toLocaleString(),a.responsible||"—",a.serialNum||"—",a.lastInventory||"—",a.notes||"—"]);
+
+  const statusColor = s => {
+    if(s==="Disponible"||s==="En service") return "green";
+    if(s==="En maintenance"||s==="Prêté") return "amber";
+    return "red";
+  };
+
+  const subTabs = [
+    {id:"inventory", label:"📦 Inventaire"},
+    {id:"stocks",    label:"🔄 Mouvements"},
+    {id:"epi",       label:"🦺 EPI"},
+    {id:"dashboard", label:"📊 Tableau"},
+  ];
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      {/* KPIs */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12 }}>
+        <StatCard icon="📦" label="Total actifs" value={assets.length} sub="articles" color="#DBEAFE" />
+        <StatCard icon="💰" label="Valeur actuelle" value={`${(totalValue/1000000).toFixed(1)}M`} sub="FCFA" color="#D1FAE5" />
+        <StatCard icon="📉" label="Dépréciation" value={`${totalPurchase>0?Math.round((1-totalValue/totalPurchase)*100):0}%`} sub="depuis achat" color="#FEF9C3" />
+        <StatCard icon="⚠️" label="Stocks bas" value={lowStockAlerts.length} sub="alertes" color={lowStockAlerts.length>0?"#FEE2E2":"#D1FAE5"} />
+        <StatCard icon="🚫" label="Hors service" value={assets.filter(a=>["Hors service","Mis au rebut"].includes(a.status)).length} sub="actifs" color="#FEE2E2" />
+      </div>
+
+      {/* Alertes stock bas */}
+      {lowStockAlerts.length>0&&(
+        <Card style={{ border:`2px solid ${C.danger}` }}>
+          <h3 style={{ ...sectionTitle, color:C.danger, borderColor:C.danger }}>⚠️ Stocks bas ({lowStockAlerts.length})</h3>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+            {lowStockAlerts.map(a=>(
+              <div key={a.id} style={{ background:"#FEF2F2", borderRadius:10, padding:"8px 14px", borderLeft:`4px solid ${C.danger}` }}>
+                <div style={{ fontFamily:FONT, fontWeight:700, fontSize:13 }}>{a.ref} — {a.item}</div>
+                <div style={{ fontFamily:FONT, fontSize:12, color:C.danger }}>Stock : {a.qty} {a.unit} (min : {a.minStock})</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Sous-onglets */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", borderBottom:`2px solid ${C.sand}` }}>
+        {subTabs.map(t=>(
+          <button key={t.id} onClick={()=>setSubTab(t.id)} style={{ background:subTab===t.id?C.green:"transparent", color:subTab===t.id?C.white:C.forest, border:"none", borderRadius:"8px 8px 0 0", padding:"8px 16px", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:FONT }}>{t.label}</button>
+        ))}
+      </div>
+
+      {/* ── INVENTAIRE ── */}
+      {subTab==="inventory" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          <ExportBar title="Inventaire Actifs" headers={["Réf","Catégorie","Article","Marque","Modèle","Site","Qté","Unité","Statut","Achat","Val. achat","Val. actuelle","Responsable","N° série","Dernier inv.","Notes"]} rows={exportRows} filename="inventaire_actifs" />
+          <Card>
+            <h3 style={sectionTitle}>{editing?"✏️ Modifier":"➕ Ajouter un actif"}</h3>
+            <div style={{ marginBottom:10, padding:"8px 12px", background:"#EFF6FF", borderRadius:8, fontSize:12, fontFamily:FONT, color:"#1E40AF" }}>
+              💡 Pour les pièces jointes (factures, photos) : colle le lien de partage Google Drive ou Dropbox.
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
+              <Input label="Référence unique" value={form.ref} onChange={v=>setForm({...form,ref:v})} />
+              <Input label="Catégorie" value={form.category} onChange={v=>setForm({...form,category:v,item:""})} options={Object.keys(ASSET_CATEGORIES)} />
+              <Input label="Article / Type" value={form.item} onChange={v=>setForm({...form,item:v})}
+                options={form.category&&ASSET_CATEGORIES[form.category]?ASSET_CATEGORIES[form.category].items:[]} />
+              <Input label="Marque" value={form.brand} onChange={v=>setForm({...form,brand:v})} />
+              <Input label="Modèle / Référence" value={form.model} onChange={v=>setForm({...form,model:v})} />
+              <Input label="Numéro de série" value={form.serialNum} onChange={v=>setForm({...form,serialNum:v})} />
+              <Input label="Site" value={form.site} onChange={v=>setForm({...form,site:v})} optObjects={siteOptions(sitesList)} />
+              <Input label="Quantité" type="number" value={form.qty} onChange={v=>setForm({...form,qty:v})} />
+              <Input label="Unité" value={form.unit} onChange={v=>setForm({...form,unit:v})} options={STOCK_UNITS} />
+              <Input label="Stock mini (alerte)" type="number" value={form.minStock} onChange={v=>setForm({...form,minStock:v})} />
+              <Input label="Date d'achat" type="date" value={form.purchaseDate} onChange={v=>setForm({...form,purchaseDate:v})} />
+              <Input label="Valeur d'achat (FCFA)" type="number" value={form.purchaseValue} onChange={v=>setForm({...form,purchaseValue:v})} />
+              <Input label="Valeur actuelle estimée (FCFA)" type="number" value={form.currentValue} onChange={v=>setForm({...form,currentValue:v})} />
+              <Input label="Statut" value={form.status} onChange={v=>setForm({...form,status:v})} options={ASSET_STATUSES} />
+              <Input label="Responsable / Affecté à" value={form.responsible} onChange={v=>setForm({...form,responsible:v})}
+                optObjects={[{value:"",label:"-- Choisir --"},...activeStaff.map(s=>({value:s.name,label:`${s.name} (${s.role})`})),{value:"Autre",label:"Autre"}]} />
+              <Input label="Date dernier inventaire" type="date" value={form.lastInventory} onChange={v=>setForm({...form,lastInventory:v})} />
+              <Input label="Lien pièce jointe (URL facture...)" value={form.docUrl} onChange={v=>setForm({...form,docUrl:v})} />
+              <div style={{ gridColumn:"1/-1" }}>
+                <Input label="Commentaires" value={form.notes} onChange={v=>setForm({...form,notes:v})} />
+              </div>
+            </div>
+            <div style={{ marginTop:14, display:"flex", gap:10 }}>
+              <Btn onClick={saveAsset}>{editing?"Enregistrer":"Ajouter"}</Btn>
+              {editing&&<Btn variant="secondary" onClick={()=>{setEditing(null);setForm(emptyAsset);}}>Annuler</Btn>}
+            </div>
+          </Card>
+
+          {/* Filtres */}
+          <Card>
+            <div style={{ display:"flex", gap:12, marginBottom:14, flexWrap:"wrap", alignItems:"flex-end" }}>
+              <h3 style={{ ...sectionTitle, flex:1, marginBottom:0, borderBottom:"none" }}>📦 Inventaire ({filtered.length} actifs)</h3>
+              <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} style={{ ...inputStyle, width:180 }}>
+                <option value="">Toutes catégories</option>
+                {Object.entries(ASSET_CATEGORIES).map(([cat,v])=><option key={cat} value={cat}>{v.icon} {cat}</option>)}
+              </select>
+              <select value={filterSite} onChange={e=>setFilterSite(e.target.value)} style={{ ...inputStyle, width:160 }}>
+                <option value="">Tous sites</option>
+                {sitesList.map(s=><option key={s.code} value={s.code}>{s.code} — {s.name}</option>)}
+              </select>
+              <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{ ...inputStyle, width:150 }}>
+                <option value="">Tous statuts</option>
+                {ASSET_STATUSES.map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+
+            {/* Groupé par catégorie */}
+            {Object.entries(ASSET_CATEGORIES).map(([cat, catDef]) => {
+              const catAssets = filtered.filter(a=>a.category===cat);
+              if (catAssets.length===0) return null;
+              return (
+                <div key={cat} style={{ marginBottom:20 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, padding:"6px 12px", background:C.sand, borderRadius:8 }}>
+                    <span style={{ fontSize:18 }}>{catDef.icon}</span>
+                    <span style={{ fontFamily:FONT, fontWeight:700, fontSize:14, color:C.forest }}>{cat}</span>
+                    <span style={{ fontFamily:FONT, fontSize:12, color:C.muted }}>({catAssets.length} articles — Valeur : {catAssets.reduce((s,a)=>s+a.currentValue,0).toLocaleString()} FCFA)</span>
+                  </div>
+                  <div style={{ overflowX:"auto" }}>
+                    <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                      <thead>
+                        <tr style={{ background:"#F9FAFB" }}>
+                          {["Réf","Article","Marque/Modèle","Site","Qté","Valeur achat","Valeur actuelle","Statut","Responsable","P.J.",""].map(h=>(
+                            <th key={h} style={{ padding:"8px 10px", textAlign:"left", fontWeight:700, color:C.forest, fontFamily:FONT, fontSize:11, whiteSpace:"nowrap" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {catAssets.map((a,i)=>(
+                          <tr key={a.id} style={{ background:i%2===0?C.white:C.cream, borderLeft:a.qty<=a.minStock&&a.minStock>0?`3px solid ${C.danger}`:"3px solid transparent" }}>
+                            <td style={{ ...td, fontWeight:700, color:C.forest, fontSize:12 }}>{a.ref}</td>
+                            <td style={{ ...td, fontWeight:600 }}>{a.item}</td>
+                            <td style={{ ...td, fontSize:11, color:C.muted }}>{[a.brand,a.model].filter(Boolean).join(" ")||"—"}</td>
+                            <td style={td}>{siteLabel(a.site,sitesList)}</td>
+                            <td style={{ ...td, fontWeight:700, color:a.qty<=a.minStock&&a.minStock>0?C.danger:C.text }}>
+                              {a.qty} {a.unit}
+                              {a.minStock>0&&<span style={{ fontSize:10, color:C.muted }}> (min:{a.minStock})</span>}
+                            </td>
+                            <td style={td}>{a.purchaseValue?a.purchaseValue.toLocaleString()+" F":"—"}</td>
+                            <td style={{ ...td, fontWeight:600 }}>{a.currentValue?a.currentValue.toLocaleString()+" F":"—"}</td>
+                            <td style={td}><Badge color={statusColor(a.status)}>{a.status}</Badge></td>
+                            <td style={{ ...td, fontSize:11 }}>{a.responsible||"—"}</td>
+                            <td style={td}>
+                              {a.docUrl&&<a href={a.docUrl} target="_blank" rel="noreferrer" style={{ fontSize:11, color:C.green, fontWeight:600, textDecoration:"none" }}>📎 Voir</a>}
+                            </td>
+                            <td style={td}>
+                              <div style={{ display:"flex", gap:5 }}>
+                                <Btn small variant="secondary" onClick={()=>{setForm({...a,qty:String(a.qty),purchaseValue:String(a.purchaseValue),currentValue:String(a.currentValue),minStock:String(a.minStock)});setEditing(a.id);}}>✏️</Btn>
+                                <Btn small variant="danger" onClick={()=>delAsset(a.id)}>🗑️</Btn>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+          </Card>
+        </div>
+      )}
+
+      {/* ── MOUVEMENTS STOCK ── */}
+      {subTab==="stocks" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          <Card>
+            <h3 style={sectionTitle}>🔄 Enregistrer un mouvement de stock</h3>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
+              <Input label="Date" type="date" value={moveForm.date} onChange={v=>setMoveForm({...moveForm,date:v})} />
+              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                <label style={{ fontSize:12, fontWeight:600, color:C.muted, fontFamily:FONT }}>Article</label>
+                <select value={moveForm.assetId} onChange={e=>setMoveForm({...moveForm,assetId:e.target.value})} style={inputStyle}>
+                  <option value="">-- Choisir --</option>
+                  {assets.filter(a=>["Intrants agricoles","Semences & Plants","Emballage","EPI","Petit matériel"].includes(a.category)).map(a=>(
+                    <option key={a.id} value={a.id}>{a.ref} — {a.item} ({a.qty} {a.unit})</option>
+                  ))}
+                </select>
+              </div>
+              <Input label="Type" value={moveForm.type} onChange={v=>setMoveForm({...moveForm,type:v})} options={["Entrée","Sortie","Retour","Perte","Ajustement"]} />
+              <Input label="Quantité" type="number" value={moveForm.qty} onChange={v=>setMoveForm({...moveForm,qty:v})} />
+              <Input label="Opérateur" value={moveForm.operator} onChange={v=>setMoveForm({...moveForm,operator:v})}
+                optObjects={[{value:"",label:"-- Choisir --"},...activeStaff.map(s=>({value:s.name,label:s.name}))]} />
+              <Input label="Motif / Destination" value={moveForm.reason} onChange={v=>setMoveForm({...moveForm,reason:v})} />
+              <Input label="Notes" value={moveForm.notes} onChange={v=>setMoveForm({...moveForm,notes:v})} />
+            </div>
+            {moveForm.assetId && moveForm.qty && (
+              <div style={{ marginTop:10, padding:"8px 14px", background:"#EFF6FF", borderRadius:8, fontFamily:FONT, fontSize:13, fontWeight:600, color:"#1E40AF" }}>
+                {(() => {
+                  const a = assets.find(x=>x.id===+moveForm.assetId);
+                  if (!a) return "";
+                  const delta = moveForm.type==="Entrée"?+moveForm.qty:-+moveForm.qty;
+                  const newQty = Math.max(0, a.qty + delta);
+                  return `📦 Stock actuel : ${a.qty} ${a.unit} → Après : ${newQty} ${a.unit}`;
+                })()}
+              </div>
+            )}
+            <div style={{ marginTop:14 }}><Btn onClick={saveMove}>Enregistrer le mouvement</Btn></div>
+          </Card>
+
+          <Card>
+            <h3 style={sectionTitle}>📋 Historique des mouvements ({stockMoves.length})</h3>
+            <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse" }}>
                 <thead>
                   <tr style={{ background:C.sand }}>
-                    {["Date","Catégorie","Libellé","Site","Montant","Statut","Notes",""].map(h=>(
-                      <th key={h} style={{ padding:"10px 11px", textAlign:"left", fontWeight:700, color:C.forest, fontFamily:FONT, fontSize:12, whiteSpace:"nowrap" }}>{h}</th>
+                    {["Date","Référence","Article","Type","Quantité","Opérateur","Motif",""].map(h=>(
+                      <th key={h} style={{ padding:"9px 10px", textAlign:"left", fontWeight:700, color:C.forest, fontFamily:FONT, fontSize:11, whiteSpace:"nowrap" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {[...charges].sort((a,b)=>b.date.localeCompare(a.date)).map((c,i)=>(
-                    <tr key={c.id} style={{ background:i%2===0?C.white:C.cream }}>
-                      <td style={td}>{c.date}</td>
-                      <td style={td}><Badge color="amber">{c.category}</Badge></td>
-                      <td style={{ ...td, fontWeight:600 }}>{c.label}</td>
-                      <td style={td}>{c.site}</td>
-                      <td style={{ ...td, fontWeight:700 }}>{c.amount.toLocaleString()} F</td>
-                      <td style={td}>
-                        <span onClick={()=>setCharges(charges.map(x=>x.id===c.id?{...x,paid:!x.paid}:x))} style={{ cursor:"pointer" }}>
-                          <Badge color={c.paid?"green":"amber"}>{c.paid?"✅ Payé":"⏳ À payer"}</Badge>
-                        </span>
-                      </td>
-                      <td style={{ ...td, color:C.muted }}>{c.notes||"—"}</td>
-                      <td style={td}>
-                        <div style={{ display:"flex", gap:5 }}>
-                          <Btn small variant="secondary" onClick={()=>{setCForm({...c,amount:String(c.amount)});setEditingC(c.id);}}>✏️</Btn>
-                          <Btn small variant="danger" onClick={()=>setCharges(charges.filter(x=>x.id!==c.id))}>🗑️</Btn>
-                        </div>
-                      </td>
+                  {[...stockMoves].sort((a,b)=>b.date.localeCompare(a.date)).map((m,i)=>(
+                    <tr key={m.id} style={{ background:i%2===0?C.white:C.cream }}>
+                      <td style={td}>{m.date}</td>
+                      <td style={{ ...td, fontWeight:700, color:C.forest }}>{m.assetRef}</td>
+                      <td style={td}>{assets.find(a=>a.id===+m.assetId)?.item||"—"}</td>
+                      <td style={td}><Badge color={m.type==="Entrée"?"green":m.type==="Perte"?"red":"amber"}>{m.type}</Badge></td>
+                      <td style={{ ...td, fontWeight:700 }}>{m.type==="Entrée"?"+":"-"}{m.qty} {m.unit}</td>
+                      <td style={td}>{m.operator||"—"}</td>
+                      <td style={{ ...td, color:C.muted, fontSize:11 }}>{m.reason||"—"}</td>
+                      <td style={td}><Btn small variant="danger" onClick={()=>{const u=stockMoves.filter(x=>x.id!==m.id);setStockMoves(u);saveLS("vs_stock_moves",u);}}>🗑️</Btn></td>
                     </tr>
                   ))}
                 </tbody>
@@ -1378,28 +1827,128 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
         </div>
       )}
 
-      {subTab==="synthese" && (
+      {/* ── EPI PAR TRAVAILLEUR ── */}
+      {subTab==="epi" && (
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
           <Card>
-            <h3 style={sectionTitle}>💹 Structure des coûts</h3>
-            {[
-              { label:"Personnel permanent", amount:monthlyPayroll*12, color:"#3B82F6" },
-              { label:"MO temporaire", amount:totalTempCost, color:C.amber },
-              ...CHARGE_CATEGORIES.map((cat,i)=>({ label:cat, amount:charges.filter(c=>c.category===cat).reduce((s,c)=>s+c.amount,0), color:`hsl(${120+i*20},50%,45%)` }))
-            ].filter(x=>x.amount>0).map(x=>{
-              const total = monthlyPayroll*12+totalTempCost+charges.reduce((s,c)=>s+c.amount,0);
-              const pct = total>0?(x.amount/total*100):0;
+            <h3 style={sectionTitle}>🦺 EPI par travailleur</h3>
+            {staff.filter(s=>s.status==="Actif").map(s=>{
+              const epiAssets = assets.filter(a=>a.category==="EPI"&&a.responsible===s.name);
               return (
-                <div key={x.label} style={{ marginBottom:10 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:3, fontFamily:FONT }}>
-                    <span>{x.label}</span>
-                    <span style={{ fontWeight:700 }}>{x.amount.toLocaleString()} F <span style={{ color:C.muted, fontWeight:400 }}>({pct.toFixed(1)}%)</span></span>
+                <div key={s.id} style={{ marginBottom:14, padding:14, background:C.cream, borderRadius:12, borderLeft:`4px solid ${C.sage}` }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+                    <div style={{ width:36, height:36, borderRadius:"50%", background:C.sand, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
+                      {s.photoUrl?<img src={s.photoUrl} alt="" style={{ width:36, height:36, borderRadius:"50%", objectFit:"cover" }} onError={e=>e.target.style.display="none"} />:"👤"}
+                    </div>
+                    <div>
+                      <div style={{ fontFamily:FONT, fontWeight:700, fontSize:14, color:C.forest }}>{s.name}</div>
+                      <div style={{ fontFamily:FONT, fontSize:12, color:C.muted }}>{s.role} · {s.site}</div>
+                    </div>
                   </div>
-                  <div style={{ height:7, background:C.sand, borderRadius:4 }}>
-                    <div style={{ height:7, width:`${pct}%`, background:x.color, borderRadius:4 }} />
+                  {epiAssets.length>0?(
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                      {epiAssets.map(a=>(
+                        <div key={a.id} style={{ background:C.white, borderRadius:8, padding:"6px 12px", fontSize:12, fontFamily:FONT, border:`1px solid ${C.sand}` }}>
+                          <span style={{ fontWeight:600 }}>{a.item}</span>
+                          <span style={{ color:C.muted }}> — {a.qty} {a.unit}</span>
+                          <span style={{ marginLeft:6 }}><Badge color={statusColor(a.status)}>{a.status}</Badge></span>
+                        </div>
+                      ))}
+                    </div>
+                  ):(
+                    <div style={{ fontFamily:FONT, fontSize:12, color:C.muted, fontStyle:"italic" }}>Aucun EPI assigné. Modifie un actif EPI pour l'assigner à cet employé.</div>
+                  )}
+                </div>
+              );
+            })}
+          </Card>
+          <Card>
+            <h3 style={sectionTitle}>🦺 EPI par site</h3>
+            {sitesList.map(s=>{
+              const siteEpi = assets.filter(a=>a.category==="EPI"&&a.site===s.code);
+              if (siteEpi.length===0) return null;
+              return (
+                <div key={s.code} style={{ marginBottom:12 }}>
+                  <div style={{ fontFamily:FONT, fontWeight:700, fontSize:14, color:C.forest, marginBottom:6 }}>{s.code} — {s.name}</div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                    {siteEpi.map(a=>(
+                      <div key={a.id} style={{ background:C.cream, borderRadius:8, padding:"6px 12px", fontSize:12, fontFamily:FONT }}>
+                        <span style={{ fontWeight:600 }}>{a.ref}</span> — {a.item} ({a.qty} {a.unit}) <Badge color={statusColor(a.status)}>{a.status}</Badge>
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
+            })}
+          </Card>
+        </div>
+      )}
+
+      {/* ── TABLEAU DE BORD ACTIFS ── */}
+      {subTab==="dashboard" && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:16 }}>
+          <Card>
+            <h3 style={sectionTitle}>💰 Valeur par catégorie</h3>
+            {Object.entries(ASSET_CATEGORIES).map(([cat, catDef]) => {
+              const catAssets = assets.filter(a=>a.category===cat);
+              const val = catAssets.reduce((s,a)=>s+a.currentValue,0);
+              if (!val) return null;
+              return (
+                <div key={cat} style={{ marginBottom:12 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:4, fontFamily:FONT }}>
+                    <span>{catDef.icon} {cat} <span style={{ color:C.muted }}>({catAssets.length})</span></span>
+                    <span style={{ fontWeight:700 }}>{val.toLocaleString()} F</span>
+                  </div>
+                  <div style={{ height:7, background:C.sand, borderRadius:4 }}>
+                    <div style={{ height:7, width:`${totalValue>0?(val/totalValue)*100:0}%`, background:C.sage, borderRadius:4 }} />
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{ marginTop:12, padding:"10px 14px", background:C.forest, borderRadius:10, display:"flex", justifyContent:"space-between", color:C.white, fontFamily:FONT }}>
+              <span style={{ fontWeight:700 }}>Valeur totale</span>
+              <span style={{ fontWeight:800 }}>{totalValue.toLocaleString()} FCFA</span>
+            </div>
+          </Card>
+
+          <Card>
+            <h3 style={sectionTitle}>📍 Actifs par site</h3>
+            {sitesList.map(s=>{
+              const siteAssets = assets.filter(a=>a.site===s.code);
+              const siteVal = siteAssets.reduce((sum,a)=>sum+a.currentValue,0);
+              return siteAssets.length>0?(
+                <div key={s.code} style={{ marginBottom:12, padding:"10px 14px", background:C.cream, borderRadius:10 }}>
+                  <div style={{ fontFamily:FONT, fontWeight:700, color:C.forest }}>{s.code} — {s.name}</div>
+                  <div style={{ fontFamily:FONT, fontSize:12, color:C.muted, marginTop:4 }}>
+                    {siteAssets.length} actifs · Valeur : {siteVal.toLocaleString()} FCFA
+                  </div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:6 }}>
+                    {ASSET_STATUSES.map(st=>{
+                      const cnt = siteAssets.filter(a=>a.status===st).length;
+                      return cnt>0?<span key={st} style={{ fontSize:10, fontFamily:FONT }}><Badge color={statusColor(st)}>{st}: {cnt}</Badge></span>:null;
+                    })}
+                  </div>
+                </div>
+              ):null;
+            })}
+          </Card>
+
+          <Card>
+            <h3 style={sectionTitle}>🔧 État du parc matériel</h3>
+            {ASSET_STATUSES.map(st=>{
+              const cnt = assets.filter(a=>a.status===st).length;
+              const pct = assets.length>0?(cnt/assets.length)*100:0;
+              return cnt>0?(
+                <div key={st} style={{ marginBottom:10 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:3, fontFamily:FONT }}>
+                    <span><Badge color={statusColor(st)}>{st}</Badge></span>
+                    <span style={{ fontWeight:700 }}>{cnt} actif(s) ({pct.toFixed(0)}%)</span>
+                  </div>
+                  <div style={{ height:6, background:C.sand, borderRadius:3 }}>
+                    <div style={{ height:6, width:`${pct}%`, background:st==="Disponible"||st==="En service"?C.sage:st==="Hors service"||st==="Mis au rebut"?C.danger:C.amber, borderRadius:3 }} />
+                  </div>
+                </div>
+              ):null;
             })}
           </Card>
         </div>
@@ -2533,6 +3082,7 @@ const TABS = [
   { id:"harvest",     label:"Récoltes",         icon:"🧺" },
   { id:"sales",       label:"Ventes",           icon:"💰" },
   { id:"treatments",  label:"Interventions",    icon:"🌿" },
+  { id:"assets",      label:"Actifs & Stocks",  icon:"📦" },
   { id:"hr",          label:"RH & Charges",     icon:"👷" },
   { id:"pnl",         label:"Compte Exploit.",  icon:"📄" },
 ];
@@ -2658,7 +3208,8 @@ export default function App() {
           {tab==="nursery"    && <NurseryModule  batches={nurseryDB.rows} setBatches={setBatches} graftings={graftingsDB.rows} setGraftings={setGraftings} species={species} sitesList={sitesList} />}
           {tab==="harvest"    && <HarvestModule  harvests={harvestsDB.rows} setHarvests={setHarvests} species={species} sitesList={sitesList} onAddVariety={handleAddVariety} />}
           {tab==="sales"      && <SalesModule    sales={salesDB.rows} setSales={setSales} species={species} sitesList={sitesList} onAddVariety={handleAddVariety} />}
-          {tab==="treatments" && <TreatmentsModule treatments={treatsDB.rows} setTreatments={setTreatments} species={species} sitesList={sitesList} />}
+          {tab==="treatments" && <TreatmentsModule treatments={treatsDB.rows} setTreatments={setTreatments} species={species} sitesList={sitesList} staff={staffDB.rows} />}
+          {tab==="assets"      && <AssetsModule sitesList={sitesList} staff={staffDB.rows} />}
           {tab==="hr"         && <HRChargesModule staff={staffDB.rows} setStaff={setStaff} tempWork={tempDB.rows} setTempWork={setTempWork} charges={chargesDB.rows} setCharges={setCharges} sitesList={sitesList} />}
           {tab==="pnl"        && <PnLModule      sales={salesDB.rows} harvests={harvestsDB.rows} staff={staffDB.rows} tempWork={tempDB.rows} charges={chargesDB.rows} />}
         </>}
