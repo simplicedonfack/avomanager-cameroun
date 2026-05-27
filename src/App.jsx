@@ -3520,74 +3520,10 @@ const TABS = [
 ];
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
-export default function App() {
-  const [tab, setTab]           = useState("dashboard");
+// ─── MainApp (authenticated) ─────────────────────────────────────────────────
+function MainApp({ authToken, currentUser, onLogout }) {
+  const [tab, setTab]       = useState("dashboard");
   const [saveStatus, setSaveStatus] = useState("");
-  const [authToken, setAuthToken]   = useState(() => {
-    try { return localStorage.getItem("vs_token") || ""; } catch { return ""; }
-  });
-  const [currentUser, setCurrentUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("vs_user") || "null"); } catch { return null; }
-  });
-  const [authChecking, setAuthChecking] = useState(true);
-
-  // ── Vérification token au démarrage
-  useEffect(() => {
-    const token = localStorage.getItem("vs_token");
-    if (!token) { setAuthChecking(false); return; }
-    Auth.getUser(token).then(user => {
-      if (user) {
-        setAuthToken(token);
-        setCurrentUser(user);
-      } else {
-        localStorage.removeItem("vs_token");
-        localStorage.removeItem("vs_user");
-        setAuthToken("");
-        setCurrentUser(null);
-      }
-      setAuthChecking(false);
-    });
-  }, []);
-
-  const handleLogin = (token, user) => {
-    setAuthToken(token);
-    setCurrentUser(user);
-  };
-
-  const handleLogout = async () => {
-    await Auth.signOut(authToken);
-    localStorage.removeItem("vs_token");
-    localStorage.removeItem("vs_refresh");
-    localStorage.removeItem("vs_user");
-    setAuthToken("");
-    setCurrentUser(null);
-  };
-
-  // ── Chargement écran si vérification en cours
-  if (authChecking) {
-    return (
-      <div style={{ minHeight: "100vh", background: `linear-gradient(135deg, ${C.forest}, ${C.green})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ textAlign: "center", color: C.white, fontFamily: FONT }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🌿</div>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>Vegesoft</div>
-          <div style={{ fontSize: 13, opacity: 0.7, marginTop: 8 }}>Vérification de session...</div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Page de connexion si non authentifié
-  if (!authToken || !currentUser) {
-    return <LoginPage onLogin={handleLogin} />;
-  }
-
-  // ── App principale (authentifiée)
-  const sbFetchAuth = (table, method="GET", body=null, filter="") => {
-    const url = `${SUPABASE_URL}/rest/v1/${table}${filter}`;
-    const headers = { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${authToken}`, "Content-Type": "application/json", "Prefer": method==="POST"?"return=representation":method==="PATCH"?"return=representation":"" };
-    return fetch(url, { method, headers, body: body ? JSON.stringify(body) : null })
-      .then(r => { if(!r.ok) throw new Error(); return method==="DELETE"||r.status===204?[]:r.json(); });
-  };
 
   const treesDB     = useSupabaseTable("trees",          "vs_trees",    initialTrees);
   const harvestsDB  = useSupabaseTable("harvests",       "vs_harvests", initialHarvests);
@@ -3653,40 +3589,28 @@ export default function App() {
               </div>
             </div>
             <div style={{ flex:1 }} />
-            {/* User info */}
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
               <div style={{ textAlign:"right" }}>
                 <div style={{ color:C.white, fontSize:12, fontWeight:600, fontFamily:FONT }}>{currentUser.email}</div>
-                <div style={{
-                  background: allSynced?"#D1FAE5":allLoading?"rgba(255,255,255,0.2)":"#FEF3C7",
-                  color: allSynced?"#065F46":allLoading?"rgba(255,255,255,0.9)":"#92400E",
-                  padding:"2px 10px", borderRadius:20, fontSize:10, fontWeight:700, fontFamily:FONT,
-                }}>
+                <div style={{ background:allSynced?"#D1FAE5":allLoading?"rgba(255,255,255,0.2)":"#FEF3C7", color:allSynced?"#065F46":allLoading?"rgba(255,255,255,0.9)":"#92400E", padding:"2px 10px", borderRadius:20, fontSize:10, fontWeight:700, fontFamily:FONT }}>
                   {allLoading?"⏳ Synchro...":allSynced?"☁️ Connecté":saveStatus==="saved"?"✅ Sauvegardé":"⚠️ Local"}
                 </div>
               </div>
-              <button onClick={handleLogout} style={{
-                background:"rgba(255,255,255,0.15)", color:C.white, border:"1px solid rgba(255,255,255,0.3)",
-                borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:FONT,
-              }}>🚪 Déconnexion</button>
+              <button onClick={onLogout} style={{ background:"rgba(255,255,255,0.15)", color:C.white, border:"1px solid rgba(255,255,255,0.3)", borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:FONT }}>
+                🚪 Déconnexion
+              </button>
             </div>
           </div>
-          {/* Tabs */}
           <div style={{ display:"flex", gap:2, overflowX:"auto", scrollbarWidth:"none" }}>
             {TABS.map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{
-                background: tab===t.id?"rgba(255,255,255,0.95)":"transparent",
-                color: tab===t.id?C.forest:"rgba(255,255,255,0.75)",
-                border:"none", borderRadius:"8px 8px 0 0", padding:"8px 12px",
-                fontSize:11, fontWeight:tab===t.id?700:500, cursor:"pointer",
-                whiteSpace:"nowrap", fontFamily:FONT, transition:"all 0.15s",
-              }}>{t.icon} {t.label}</button>
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{ background:tab===t.id?"rgba(255,255,255,0.95)":"transparent", color:tab===t.id?C.forest:"rgba(255,255,255,0.75)", border:"none", borderRadius:"8px 8px 0 0", padding:"8px 12px", fontSize:11, fontWeight:tab===t.id?700:500, cursor:"pointer", whiteSpace:"nowrap", fontFamily:FONT, transition:"all 0.15s" }}>
+                {t.icon} {t.label}
+              </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Contenu */}
       <div style={{ maxWidth:1400, margin:"0 auto", padding:"24px 16px" }}>
         {allLoading&&(
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, padding:60, color:C.muted }}>
@@ -3727,4 +3651,54 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+// ─── App (auth shell) ─────────────────────────────────────────────────────────
+export default function App() {
+  const [authToken,    setAuthToken]    = useState(() => { try { return localStorage.getItem("vs_token") || ""; } catch { return ""; } });
+  const [currentUser,  setCurrentUser]  = useState(() => { try { return JSON.parse(localStorage.getItem("vs_user") || "null"); } catch { return null; } });
+  const [authChecking, setAuthChecking] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem("vs_token");
+    if (!token) { setAuthChecking(false); return; }
+    Auth.getUser(token).then(user => {
+      if (user) { setAuthToken(token); setCurrentUser(user); }
+      else {
+        localStorage.removeItem("vs_token");
+        localStorage.removeItem("vs_user");
+        setAuthToken(""); setCurrentUser(null);
+      }
+      setAuthChecking(false);
+    }).catch(() => setAuthChecking(false));
+  }, []);
+
+  const handleLogin = (token, user) => { setAuthToken(token); setCurrentUser(user); };
+
+  const handleLogout = async () => {
+    try { await Auth.signOut(authToken); } catch {}
+    localStorage.removeItem("vs_token");
+    localStorage.removeItem("vs_refresh");
+    localStorage.removeItem("vs_user");
+    setAuthToken(""); setCurrentUser(null);
+  };
+
+  if (authChecking) {
+    return (
+      <div style={{ minHeight:"100vh", background:`linear-gradient(135deg, ${C.forest}, ${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:FONT }}>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+        <div style={{ textAlign:"center", color:C.white }}>
+          <div style={{ fontSize:52, marginBottom:12 }}>🌿</div>
+          <div style={{ fontSize:22, fontWeight:800 }}>Vegesoft</div>
+          <div style={{ fontSize:13, opacity:0.6, marginTop:6 }}>Chargement...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authToken || !currentUser) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  return <MainApp authToken={authToken} currentUser={currentUser} onLogout={handleLogout} />;
 }
