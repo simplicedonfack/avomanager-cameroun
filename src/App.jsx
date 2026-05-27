@@ -1542,7 +1542,7 @@ function SelectedTreesModule({ selectedTrees, setSelectedTrees, sitesList, speci
       <Card>
         <h3 style={sectionTitle}>{editing?"✏️ Modifier":"⭐ Référencer un arbre"}</h3>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:12 }}>
-          <Input label="Référence (ex: ARB-A-004)" value={form.ref} onChange={v=>setForm({...form,ref:v})} />
+          <Input label="Référence (ex: AV-004)" value={form.ref} onChange={v=>setForm({...form,ref:v})} />
           <Input label="Site" value={form.site} onChange={v=>setForm({...form,site:v})} optObjects={siteOptions(sitesList)} />
           <Input label="Espèce" value={form.species} onChange={v=>setForm({...form,species:v,variety:""})} options={species.map(s=>s.name)} />
           <Input label="Variété" value={form.variety} onChange={v=>setForm({...form,variety:v})} options={varietyOptions} />
