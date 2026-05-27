@@ -17,6 +17,7 @@ const COLORS = {
 
 
 const VARIETIES = ["Hass", "Fuerte", "Polog", "Both 7", "Locale"];
+const SITES = ["Site A", "Site B", "Site C"];
 
 // ─── Sites enrichis (code + nom + GPS) ──────────────────────────────────────
 const initialSitesList = [
