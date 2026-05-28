@@ -2987,30 +2987,58 @@ function getMaps() { return {
 }; }
 
 function useSupabaseTable(tableName, lsKey, initialData) {
-  const [rows, setRows] = useState(()=>loadLS(lsKey,initialData));
+  const [rows, setRows] = useState(() => loadLS(lsKey, initialData));
   const [synced, setSynced] = useState(false);
   const [loading, setLoading] = useState(true);
-  useEffect(()=>{
-    const map = getMaps()[tableName] || { toDB: r=>r, fromDB: r=>r };
-    getDB().list(tableName).then(data=>{
-      const converted = data.map(map.fromDB);
-      setRows(converted); saveLS(lsKey,converted); setSynced(true); setLoading(false);
-    }).catch(()=>setLoading(false));
-  },[]);
 
-  const add = async item => {
-    try { const m=getMaps()[tableName]||{toDB:r=>r,fromDB:r=>r}; const [saved]=await getDB().insert(tableName,m.toDB(item)); const newItem=m.fromDB(saved); setRows(prev=>{const n=[...prev,newItem];saveLS(lsKey,n);return n;}); return newItem; }
-    catch(e2) { const tmp={...item,id:"tmp_"+Date.now()}; setRows(prev=>{const n=[...prev,tmp];saveLS(lsKey,n);return n;}); return tmp; }
+  useEffect(() => {
+    sbFetch(tableName, "GET", null, "?order=created_at.asc")
+      .then(data => {
+        if (!Array.isArray(data)) { setLoading(false); return; }
+        const maps = getMaps();
+        const mapper = maps[tableName];
+        const converted = mapper ? data.map(r => { try { return mapper.fromDB(r); } catch(e) { return r; } }) : data;
+        setRows(converted);
+        saveLS(lsKey, converted);
+        setSynced(true);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const add = async (item) => {
+    try {
+      const maps = getMaps();
+      const mapper = maps[tableName];
+      const dbRow = mapper ? mapper.toDB(item) : item;
+      const saved = await sbFetch(tableName, "POST", dbRow);
+      const newItem = (mapper && Array.isArray(saved) && saved[0]) ? mapper.fromDB(saved[0]) : (Array.isArray(saved) ? saved[0] : item);
+      const withId = newItem || { ...item, id: Date.now() };
+      setRows(prev => { const n = [...prev, withId]; saveLS(lsKey, n); return n; });
+      return withId;
+    } catch(e) {
+      const tmp = { ...item, id: "tmp_" + Date.now() };
+      setRows(prev => { const n = [...prev, tmp]; saveLS(lsKey, n); return n; });
+      return tmp;
+    }
   };
 
-  const update = async (id,item) => {
-    try { const m=getMaps()[tableName]||{toDB:r=>r,fromDB:r=>r}; const [saved]=await getDB().update(tableName,id,m.toDB(item)); const updated=m.fromDB(saved); setRows(prev=>{const n=prev.map(r=>r.id===id?updated:r);saveLS(lsKey,n);return n;}); }
-    catch { setRows(prev=>{const n=prev.map(r=>r.id===id?{...item,id}:r);saveLS(lsKey,n);return n;}); }
+  const update = async (id, item) => {
+    try {
+      const maps = getMaps();
+      const mapper = maps[tableName];
+      const dbRow = mapper ? mapper.toDB(item) : item;
+      const saved = await sbFetch(tableName, "PATCH", dbRow, `?id=eq.${id}`);
+      const updated = (mapper && Array.isArray(saved) && saved[0]) ? mapper.fromDB(saved[0]) : { ...item, id };
+      setRows(prev => { const n = prev.map(r => r.id === id ? updated : r); saveLS(lsKey, n); return n; });
+    } catch(e) {
+      setRows(prev => { const n = prev.map(r => r.id === id ? { ...item, id } : r); saveLS(lsKey, n); return n; });
+    }
   };
 
-  const remove = async id => {
-    try{await getDB().remove(tableName,id);}catch{}
-    setRows(prev=>{const n=prev.filter(r=>r.id!==id);saveLS(lsKey,n);return n;});
+  const remove = async (id) => {
+    try { await sbFetch(tableName, "DELETE", null, `?id=eq.${id}`); } catch(e) {}
+    setRows(prev => { const n = prev.filter(r => r.id !== id); saveLS(lsKey, n); return n; });
   };
 
   return { rows, add, update, remove, loading, synced };
@@ -3606,10 +3634,11 @@ const TABS = [
 // ─── APP ──────────────────────────────────────────────────────────────────────
 // ─── MainApp (authenticated) ─────────────────────────────────────────────────
 function MainApp({ authToken, currentUser, onLogout }) {
+  // CRITICAL: Set token synchronously - must happen before useSupabaseTable hooks
+  setGlobalToken(authToken);
+
   const [tab, setTab]       = useState("dashboard");
   const [saveStatus, setSaveStatus] = useState("");
-
-  useEffect(() => { setGlobalToken(authToken); return () => {}; }, [authToken]);
 
   const treesDB     = useSupabaseTable("trees",          "vs_trees",    initialTrees);
   const harvestsDB  = useSupabaseTable("harvests",       "vs_harvests", initialHarvests);
@@ -3805,5 +3834,7 @@ export default function App() {
     return <LoginPage onLogin={handleLogin} />;
   }
 
+  // Set token synchronously before MainApp renders
+  setGlobalToken(authToken);
   return <MainApp authToken={authToken} currentUser={currentUser} onLogout={handleLogout} />;
 }
