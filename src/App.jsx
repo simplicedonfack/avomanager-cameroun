@@ -2990,9 +2990,8 @@ function useSupabaseTable(tableName, lsKey, initialData) {
   const [rows, setRows] = useState(()=>loadLS(lsKey,initialData));
   const [synced, setSynced] = useState(false);
   const [loading, setLoading] = useState(true);
-  const map = getMaps()[tableName] || { toDB: r=>r, fromDB: r=>r };
-
   useEffect(()=>{
+    const map = getMaps()[tableName] || { toDB: r=>r, fromDB: r=>r };
     getDB().list(tableName).then(data=>{
       const converted = data.map(map.fromDB);
       setRows(converted); saveLS(lsKey,converted); setSynced(true); setLoading(false);
@@ -3000,12 +2999,12 @@ function useSupabaseTable(tableName, lsKey, initialData) {
   },[]);
 
   const add = async item => {
-    try { const [saved]=await getDB().insert(tableName,getMaps()[tableName].toDB(item)); const newItem=map.fromDB(saved); setRows(prev=>{const n=[...prev,newItem];saveLS(lsKey,n);return n;}); return newItem; }
-    catch { const tmp={...item,id:"tmp_"+Date.now()}; setRows(prev=>{const n=[...prev,tmp];saveLS(lsKey,n);return n;}); return tmp; }
+    try { const m=getMaps()[tableName]||{toDB:r=>r,fromDB:r=>r}; const [saved]=await getDB().insert(tableName,m.toDB(item)); const newItem=m.fromDB(saved); setRows(prev=>{const n=[...prev,newItem];saveLS(lsKey,n);return n;}); return newItem; }
+    catch(e2) { const tmp={...item,id:"tmp_"+Date.now()}; setRows(prev=>{const n=[...prev,tmp];saveLS(lsKey,n);return n;}); return tmp; }
   };
 
   const update = async (id,item) => {
-    try { const [saved]=await getDB().update(tableName,id,getMaps()[tableName].toDB(item)); const updated=map.fromDB(saved); setRows(prev=>{const n=prev.map(r=>r.id===id?updated:r);saveLS(lsKey,n);return n;}); }
+    try { const m=getMaps()[tableName]||{toDB:r=>r,fromDB:r=>r}; const [saved]=await getDB().update(tableName,id,m.toDB(item)); const updated=m.fromDB(saved); setRows(prev=>{const n=prev.map(r=>r.id===id?updated:r);saveLS(lsKey,n);return n;}); }
     catch { setRows(prev=>{const n=prev.map(r=>r.id===id?{...item,id}:r);saveLS(lsKey,n);return n;}); }
   };
 
