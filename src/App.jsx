@@ -2964,14 +2964,17 @@ async function sbFetch(table, method="GET", body=null, filter="") {
   return res.json();
 }
 
-function getDB() { return {
-  list:   t     => sbFetch(t,"GET",null,"?order=created_at.asc"),
-  insert: (t,r) => sbFetch(t,"POST",r),
-  update: (t,id,r) => sbFetch(t,"PATCH",r,`?id=eq.${id}`),
-  remove: (t,id) => sbFetch(t,"DELETE",null,`?id=eq.${id}`),
-}; }
 
-function getMaps() { return {
+
+
+
+function useSupabaseTable(tableName, lsKey, initialData) {
+  const [rows, setRows] = useState(() => loadLS(lsKey, initialData));
+  const [synced, setSynced] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Inline mappers - no external function dependency
+  const INLINE_MAPS = {
   trees:          { toDB:r=>({site:r.site,species:r.species,variety:r.variety,count:r.count,plant_date:r.plantDate||null,status:r.status,notes:r.notes||""}), fromDB:r=>({id:r.id,site:r.site,species:r.species,variety:r.variety,count:+r.count,plantDate:r.plant_date,status:r.status,notes:r.notes}) },
   harvests:       { toDB:r=>({date:r.date,site:r.site,species:r.species,variety:r.variety,qty:r.qty,unit:r.unit||"kg",notes:r.notes||""}), fromDB:r=>({id:r.id,date:r.date,site:r.site,species:r.species,variety:r.variety,qty:+r.qty,unit:r.unit,notes:r.notes}) },
   sales:          { toDB:r=>({date:r.date,buyer:r.buyer,species:r.species,variety:r.variety,qty:r.qty,price:r.price,paid:r.paid||false,notes:r.notes||""}), fromDB:r=>({id:r.id,date:r.date,buyer:r.buyer,species:r.species,variety:r.variety,qty:+r.qty,price:+r.price,paid:r.paid,notes:r.notes}) },
@@ -2983,20 +2986,20 @@ function getMaps() { return {
   charges:        { toDB:r=>({date:r.date,category:r.category,label:r.label,site:r.site||"Tous",amount:r.amount,paid:r.paid||false,notes:r.notes||""}), fromDB:r=>({id:r.id,date:r.date,category:r.category,label:r.label,site:r.site,amount:+r.amount,paid:r.paid,notes:r.notes}) },
   app_species:    { toDB:r=>({name:r.name,emoji:r.emoji||"🌳",color:r.color||"#2E5E3E",varieties:JSON.stringify(Array.isArray(r.varieties)?r.varieties:[])}), fromDB:r=>({id:r.id,name:r.name,emoji:r.emoji,color:r.color,varieties:Array.isArray(r.varieties)?r.varieties:[]}) },
   app_sites:      { toDB:r=>({code:r.code,name:r.name,lat_dec:r.latDec||0,lng_dec:r.lngDec||0,notes:r.notes||""}), fromDB:r=>({id:r.id,code:r.code,name:r.name,latDec:+r.lat_dec,lngDec:+r.lng_dec,notes:r.notes}) },
-  selected_trees: { toDB:r=>({ref:r.ref,site:r.site,species:r.species,variety:r.variety,year:r.year||0,lat_dec:r.latDec||0,lng_dec:r.lngDec||0,reason:r.reason||"",notes:r.notes||"",status:r.status||"Actif"}), fromDB:r=>({id:r.id,ref:r.ref,site:r.site,species:r.species,variety:r.variety,year:r.year,latDec:+r.lat_dec,lngDec:+r.lng_dec,reason:r.reason,notes:r.notes,status:r.status}) },
-}; }
+  selected_trees: { toDB:r=>({ref:r.ref,site:r.site,species:r.species,variety:r.variety,year:r.year||0,lat_dec:r.latDec||0,lng_dec:r.lngDec||0,reason:r.reason||"",notes:r.notes||"",status:r.status||"Actif"}), fromDB:r=>({id:r.id,ref:r.ref,site:r.site,species:r.species,variety:r.variety,year:r.year,latDec:+r.lat_dec,lngDec:+r.lng_dec,reason:r.reason,notes:r.notes,status:r.status}) },};
 
-function useSupabaseTable(tableName, lsKey, initialData) {
-  const [rows, setRows] = useState(() => loadLS(lsKey, initialData));
-  const [synced, setSynced] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const INLINE_DB = {
+    list:   t     => sbFetch(t, "GET", null, "?order=created_at.asc"),
+    insert: (t,r) => sbFetch(t, "POST", r),
+    update: (t,id,r) => sbFetch(t, "PATCH", r, `?id=eq.${id}`),
+    remove: (t,id) => sbFetch(t, "DELETE", null, `?id=eq.${id}`),
+  };
 
   useEffect(() => {
-    sbFetch(tableName, "GET", null, "?order=created_at.asc")
+    const mapper = INLINE_MAPS[tableName];
+    INLINE_DB.list(tableName)
       .then(data => {
         if (!Array.isArray(data)) { setLoading(false); return; }
-        const maps = getMaps();
-        const mapper = maps[tableName];
         const converted = mapper ? data.map(r => { try { return mapper.fromDB(r); } catch(e) { return r; } }) : data;
         setRows(converted);
         saveLS(lsKey, converted);
@@ -3007,11 +3010,10 @@ function useSupabaseTable(tableName, lsKey, initialData) {
   }, []);
 
   const add = async (item) => {
+    const mapper = INLINE_MAPS[tableName];
     try {
-      const maps = getMaps();
-      const mapper = maps[tableName];
       const dbRow = mapper ? mapper.toDB(item) : item;
-      const saved = await sbFetch(tableName, "POST", dbRow);
+      const saved = await INLINE_DB.insert(tableName, dbRow);
       const newItem = (mapper && Array.isArray(saved) && saved[0]) ? mapper.fromDB(saved[0]) : (Array.isArray(saved) ? saved[0] : item);
       const withId = newItem || { ...item, id: Date.now() };
       setRows(prev => { const n = [...prev, withId]; saveLS(lsKey, n); return n; });
@@ -3024,11 +3026,10 @@ function useSupabaseTable(tableName, lsKey, initialData) {
   };
 
   const update = async (id, item) => {
+    const mapper = INLINE_MAPS[tableName];
     try {
-      const maps = getMaps();
-      const mapper = maps[tableName];
       const dbRow = mapper ? mapper.toDB(item) : item;
-      const saved = await sbFetch(tableName, "PATCH", dbRow, `?id=eq.${id}`);
+      const saved = await INLINE_DB.update(tableName, id, dbRow);
       const updated = (mapper && Array.isArray(saved) && saved[0]) ? mapper.fromDB(saved[0]) : { ...item, id };
       setRows(prev => { const n = prev.map(r => r.id === id ? updated : r); saveLS(lsKey, n); return n; });
     } catch(e) {
@@ -3037,7 +3038,7 @@ function useSupabaseTable(tableName, lsKey, initialData) {
   };
 
   const remove = async (id) => {
-    try { await sbFetch(tableName, "DELETE", null, `?id=eq.${id}`); } catch(e) {}
+    try { await INLINE_DB.remove(tableName, id); } catch(e) {}
     setRows(prev => { const n = prev.filter(r => r.id !== id); saveLS(lsKey, n); return n; });
   };
 
