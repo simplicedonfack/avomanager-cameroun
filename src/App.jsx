@@ -3720,16 +3720,16 @@ function MainApp({ authToken, currentUser, onLogout }) {
               </div>
             </div>
             <div style={{ flex:1 }} />
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ textAlign:"right" }}>
-                <div style={{ color:C.white, fontSize:12, fontWeight:600, fontFamily:FONT }}>{currentUser.email}</div>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
+              <div style={{ color:C.white, fontSize:12, fontWeight:600, fontFamily:FONT }}>{currentUser.email}</div>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ background:allSynced?"#D1FAE5":allLoading?"rgba(255,255,255,0.2)":"#FEF3C7", color:allSynced?"#065F46":allLoading?"rgba(255,255,255,0.9)":"#92400E", padding:"2px 10px", borderRadius:20, fontSize:10, fontWeight:700, fontFamily:FONT }}>
                   {allLoading?"⏳ Synchro...":allSynced?"☁️ Connecté":saveStatus==="saved"?"✅ Sauvegardé":"⚠️ Local"}
                 </div>
+                <button onClick={onLogout} style={{ background:"rgba(255,255,255,0.15)", color:C.white, border:"1px solid rgba(255,255,255,0.3)", borderRadius:8, padding:"3px 10px", fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:FONT }}>
+                  🚪 Déconnexion
+                </button>
               </div>
-              <button onClick={onLogout} style={{ background:"rgba(255,255,255,0.15)", color:C.white, border:"1px solid rgba(255,255,255,0.3)", borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:FONT }}>
-                🚪 Déconnexion
-              </button>
             </div>
           </div>
           <div style={{ display:"flex", gap:2, overflowX:"auto", scrollbarWidth:"none" }}>
