@@ -2964,7 +2964,7 @@ async function sbFetch(table, method="GET", body=null, filter="") {
   return res.json();
 }
 
-const DB = {
+var DB = {
   list:   t     => sbFetch(t,"GET",null,"?order=created_at.asc"),
   insert: (t,r) => sbFetch(t,"POST",r),
   update: (t,id,r) => sbFetch(t,"PATCH",r,`?id=eq.${id}`),
@@ -2990,7 +2990,7 @@ function useSupabaseTable(tableName, lsKey, initialData) {
   const [rows, setRows] = useState(()=>loadLS(lsKey,initialData));
   const [synced, setSynced] = useState(false);
   const [loading, setLoading] = useState(true);
-  const map = MAPS[tableName];
+  const map = MAPS[tableName] || { toDB: r=>r, fromDB: r=>r };
 
   useEffect(()=>{
     DB.list(tableName).then(data=>{
@@ -3621,13 +3621,12 @@ function MainApp({ authToken, currentUser, onLogout }) {
   const staffDB     = useSupabaseTable("staff",          "vs_staff",    initialPermanentStaff);
   const tempDB      = useSupabaseTable("temp_work",      "vs_temp",     initialTempWork);
   const chargesDB   = useSupabaseTable("charges",        "vs_charges",  initialCharges);
+  const speciesDB   = useSupabaseTable("app_species",    "vs_species",  initialSpecies);
+  const sitesDB     = useSupabaseTable("app_sites",      "vs_sites_list", initialSitesList);
+  const selTreesDB  = useSupabaseTable("selected_trees", "vs_selected", initialSelectedTrees);
 
   const allLoading = [treesDB,harvestsDB,salesDB,treatsDB,nurseryDB,graftingsDB,staffDB,tempDB,chargesDB,speciesDB,sitesDB,selTreesDB].some(d=>d.loading);
   const allSynced  = [treesDB,harvestsDB,salesDB,treatsDB,nurseryDB,graftingsDB,staffDB,tempDB,chargesDB,speciesDB,sitesDB,selTreesDB].every(d=>d.synced);
-
-  const speciesDB      = useSupabaseTable("app_species",    "vs_species",   initialSpecies);
-  const sitesDB        = useSupabaseTable("app_sites",       "vs_sites_list", initialSitesList);
-  const selTreesDB     = useSupabaseTable("selected_trees",  "vs_selected",   initialSelectedTrees);
 
   const flash = () => { setSaveStatus("saved"); setTimeout(()=>setSaveStatus(""),2500); };
 
