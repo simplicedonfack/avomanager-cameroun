@@ -427,7 +427,7 @@ function Dashboard({ trees, harvests, sales, treatments, species }) {
     revenue: sales.filter(v => v.species === sp.name).reduce((s, v) => s + v.qty * v.price, 0),
   })).filter(x => x.count > 0);
 
-  const lastTreatments = [...treatments].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
+  const lastTreatments = [...treatments].sort((a, b) => (b.date||"").localeCompare(a.date||"")).slice(0, 3);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -701,7 +701,7 @@ function HarvestModule({ harvests, setHarvests, species, sitesList, onAddVariety
     setForm({ date: "", site: "", species: "", variety: "", qty: "", unit: "kg", notes: "" });
   };
 
-  const exportRows = [...harvests].sort((a,b)=>b.date.localeCompare(a.date))
+  const exportRows = [...harvests].sort((a,b) => (b.date||"").localeCompare(a.date||""))
     .map(h => [h.date, h.site, h.species, h.variety, h.qty, h.unit, h.notes||"—"]);
 
   return (
@@ -731,7 +731,7 @@ function HarvestModule({ harvests, setHarvests, species, sitesList, onAddVariety
               </tr>
             </thead>
             <tbody>
-              {[...harvests].sort((a,b)=>b.date.localeCompare(a.date)).map((h,i) => {
+              {[...harvests].sort((a,b) => (b.date||"").localeCompare(a.date||"")).map((h,i) => {
                 const sp = species.find(s=>s.name===h.species);
                 return (
                   <tr key={h.id} style={{ background: i%2===0?C.white:C.cream }}>
@@ -769,7 +769,7 @@ function SalesModule({ sales, setSales, species, sitesList, onAddVariety }) {
   const totalRevenue = sales.reduce((s,v)=>s+v.qty*v.price,0);
   const totalPaid    = sales.filter(s=>s.paid).reduce((s,v)=>s+v.qty*v.price,0);
 
-  const exportRows = [...sales].sort((a,b)=>b.date.localeCompare(a.date))
+  const exportRows = [...sales].sort((a,b) => (b.date||"").localeCompare(a.date||""))
     .map(v=>[v.date,v.buyer,v.species,v.variety,v.qty,v.price,(v.qty*v.price).toLocaleString(),v.paid?"Payé":"En attente"]);
 
   return (
@@ -815,7 +815,7 @@ function SalesModule({ sales, setSales, species, sitesList, onAddVariety }) {
               </tr>
             </thead>
             <tbody>
-              {[...sales].sort((a,b)=>b.date.localeCompare(a.date)).map((v,i)=>{
+              {[...sales].sort((a,b) => (b.date||"").localeCompare(a.date||"")).map((v,i)=>{
                 const sp = species.find(s=>s.name===v.species);
                 return (
                   <tr key={v.id} style={{ background:i%2===0?C.white:C.cream }}>
@@ -922,7 +922,7 @@ function TreatmentsModule({ treatments, setTreatments, species, sitesList, staff
               </tr>
             </thead>
             <tbody>
-              {[...filtered].sort((a,b)=>b.dateStart.localeCompare(a.dateStart)).map((t,i)=>{
+              {[...filtered].sort((a,b) => (b.dateStart||"").localeCompare(a.dateStart||"")).map((t,i)=>{
                 const dur = duration(t.dateStart, t.dateEnd);
                 return (
                   <tr key={t.id} style={{ background:i%2===0?C.white:C.cream }}>
@@ -1090,7 +1090,7 @@ function NurseryModule({ batches, setBatches, graftings, setGraftings, species, 
                   </tr>
                 </thead>
                 <tbody>
-                  {[...graftings].sort((a,b)=>b.date.localeCompare(a.date)).map((g,i)=>{
+                  {[...graftings].sort((a,b) => (b.date||"").localeCompare(a.date||"")).map((g,i)=>{
                     const rate = g.qtyGrafted>0&&g.qtySuccess>0?Math.round(g.qtySuccess/g.qtyGrafted*100):null;
                     return (
                       <tr key={g.id} style={{ background:i%2===0?C.white:C.cream }}>
@@ -1239,8 +1239,8 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
   };
 
   const exportStaffRows = staff.map(s=>[s.name,s.role,s.site,s.salary,s.startDate,s.status,s.phone||"—",s.cniNum||"—"]);
-  const exportTempRows  = [...tempWork].sort((a,b)=>b.date.localeCompare(a.date)).map(t=>[t.date,t.site,t.task,t.nbWorkers,t.nbDays,t.dailyRate,t.total]);
-  const exportChargeRows= [...charges].sort((a,b)=>b.date.localeCompare(a.date)).map(c=>[c.date,c.category,c.label,c.site,c.amount,c.paid?"Payé":"À payer",c.notes||"—"]);
+  const exportTempRows  = [...tempWork].sort((a,b) => (b.date||"").localeCompare(a.date||"")).map(t=>[t.date,t.site,t.task,t.nbWorkers,t.nbDays,t.dailyRate,t.total]);
+  const exportChargeRows= [...charges].sort((a,b) => (b.date||"").localeCompare(a.date||"")).map(c=>[c.date,c.category,c.label,c.site,c.amount,c.paid?"Payé":"À payer",c.notes||"—"]);
 
   const subTabs = [
     {id:"dashboard_rh",label:"📊 Vue RH"},
@@ -1446,7 +1446,7 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
             <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse" }}>
                 <thead><tr style={{ background:C.sand }}>{["Date","Site","Tâche","Pers.","Jours","Taux/j","Total",""].map(h=><th key={h} style={{ padding:"9px 10px", textAlign:"left", fontWeight:700, color:C.forest, fontFamily:FONT, fontSize:11, whiteSpace:"nowrap" }}>{h}</th>)}</tr></thead>
-                <tbody>{[...tempWork].sort((a,b)=>b.date.localeCompare(a.date)).map((t,i)=>(
+                <tbody>{[...tempWork].sort((a,b) => (b.date||"").localeCompare(a.date||"")).map((t,i)=>(
                   <tr key={t.id} style={{ background:i%2===0?C.white:C.cream }}>
                     <td style={td}>{t.date}</td><td style={td}>{siteLabel(t.site,sitesList)}</td>
                     <td style={td}><Badge color="amber">{t.task}</Badge></td>
@@ -1492,7 +1492,7 @@ function HRChargesModule({ staff, setStaff, tempWork, setTempWork, charges, setC
             <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse" }}>
                 <thead><tr style={{ background:C.sand }}>{["Date","Catégorie","Libellé","Site","Montant","Statut","Notes",""].map(h=><th key={h} style={{ padding:"9px 10px", textAlign:"left", fontWeight:700, color:C.forest, fontFamily:FONT, fontSize:11, whiteSpace:"nowrap" }}>{h}</th>)}</tr></thead>
-                <tbody>{[...charges].sort((a,b)=>b.date.localeCompare(a.date)).map((c,i)=>(
+                <tbody>{[...charges].sort((a,b) => (b.date||"").localeCompare(a.date||"")).map((c,i)=>(
                   <tr key={c.id} style={{ background:i%2===0?C.white:C.cream }}>
                     <td style={td}>{c.date}</td>
                     <td style={td}><Badge color="amber">{c.category}</Badge></td>
@@ -1835,7 +1835,7 @@ function AssetsModule({ sitesList, staff, token }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...stockMoves].sort((a,b)=>b.date.localeCompare(a.date)).map((m,i)=>(
+                  {[...stockMoves].sort((a,b) => (b.date||"").localeCompare(a.date||"")).map((m,i)=>(
                     <tr key={m.id} style={{ background:i%2===0?C.white:C.cream }}>
                       <td style={td}>{m.date}</td>
                       <td style={{ ...td, fontWeight:700, color:C.forest }}>{m.assetRef}</td>
@@ -3491,8 +3491,8 @@ function RemindersModule({ treatments, harvests, graftings, batches, staff }) {
     }
   });
 
-  const pending  = reminders.filter(r => !r.done && r.date >= todayStr).sort((a,b) => a.date.localeCompare(b.date));
-  const overdue  = reminders.filter(r => !r.done && r.date < todayStr).sort((a,b) => a.date.localeCompare(b.date));
+  const pending  = reminders.filter(r => !r.done && r.date >= todayStr).sort((a,b) => (a.date||"").localeCompare(b.date||""));
+  const overdue  = reminders.filter(r => !r.done && r.date < todayStr).sort((a,b) => (a.date||"").localeCompare(b.date||""));
   const done     = reminders.filter(r => r.done).slice(-5);
 
   const priorityColor = p => p === "Urgente" ? "#DC2626" : p === "Haute" ? "#D97706" : C.green;
