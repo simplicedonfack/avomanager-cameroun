@@ -2737,127 +2737,205 @@ function LoginPage({ onLogin }) {
 // ─── Page Gestion Utilisateurs ────────────────────────────────────────────────
 function UsersModule({ token, currentUser }) {
   const [appUsers, setAppUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteName, setInviteName] = useState("");
-  const [inviteRole, setInviteRole] = useState("Lecteur");
-  const [inviteSite, setInviteSite] = useState("");
-  const [inviting, setInviting] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [loading, setLoading]   = useState(true);
+  const [form, setForm]         = useState({ email:"", full_name:"", role:"Lecteur", site:"", password:"" });
+  const [saving, setSaving]     = useState(false);
+  const [msg, setMsg]           = useState("");
+  const [editingId, setEditingId] = useState(null);
 
-  useEffect(() => {
+  const USER_ROLES = ["Administrateur","Gestionnaire","Chef de site","Comptable","Lecteur"];
+
+  const loadUsers = () => {
     fetch(`${SUPABASE_URL}/rest/v1/app_users?order=created_at.desc`, {
       headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}` },
-    }).then(r => r.json()).then(data => { setAppUsers(Array.isArray(data) ? data : []); setLoading(false); })
+    }).then(r => r.json())
+      .then(data => { setAppUsers(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  };
 
-  const invite = async () => {
-    if (!inviteEmail) return;
-    setInviting(true); setMsg("");
+  useEffect(() => { loadUsers(); }, []);
+
+  const saveUser = async () => {
+    if (!form.email || !form.full_name) { setMsg("❌ Email et nom requis"); return; }
+    setSaving(true); setMsg("");
     try {
-      await Auth.inviteUser(inviteEmail, token);
-      // Save in app_users table
-      await fetch(`${SUPABASE_URL}/rest/v1/app_users`, {
-        method: "POST",
-        headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "Prefer": "return=representation" },
-        body: JSON.stringify({ email: inviteEmail, full_name: inviteName, role: inviteRole, site: inviteSite }),
+      if (editingId) {
+        // Update existing user in app_users
+        await fetch(`${SUPABASE_URL}/rest/v1/app_users?id=eq.${editingId}`, {
+          method: "PATCH",
+          headers: { "apikey":SUPABASE_KEY, "Authorization":`Bearer ${token}`, "Content-Type":"application/json" },
+          body: JSON.stringify({ full_name:form.full_name, role:form.role, site:form.site }),
+        });
+        setMsg("✅ Utilisateur mis à jour");
+        setEditingId(null);
+      } else {
+        // Create auth user via admin endpoint
+        const authRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+          method: "POST",
+          headers: { "apikey":SUPABASE_KEY, "Authorization":`Bearer ${token}`, "Content-Type":"application/json" },
+          body: JSON.stringify({
+            email: form.email,
+            password: form.password || "Vegesoft2026!",
+            email_confirm: true,
+          }),
+        });
+        if (!authRes.ok) {
+          // Fallback: just add to app_users if auth user already exists
+          const existingRes = await fetch(`${SUPABASE_URL}/rest/v1/app_users?email=eq.${encodeURIComponent(form.email)}`, {
+            headers: { "apikey":SUPABASE_KEY, "Authorization":`Bearer ${token}` },
+          });
+          const existing = await existingRes.json();
+          if (existing.length > 0) {
+            setMsg("⚠️ Cet email existe déjà dans le système");
+            setSaving(false); return;
+          }
+        }
+        const authData = authRes.ok ? await authRes.json() : null;
+        // Add to app_users
+        await fetch(`${SUPABASE_URL}/rest/v1/app_users`, {
+          method: "POST",
+          headers: { "apikey":SUPABASE_KEY, "Authorization":`Bearer ${token}`, "Content-Type":"application/json", "Prefer":"return=representation" },
+          body: JSON.stringify({
+            id: authData?.id || undefined,
+            email: form.email, full_name: form.full_name,
+            role: form.role, site: form.site, active: true,
+          }),
+        });
+        setMsg(`✅ Utilisateur ${form.email} créé avec mot de passe: ${form.password || "Vegesoft2026!"}`);
+      }
+      setForm({ email:"", full_name:"", role:"Lecteur", site:"", password:"" });
+      loadUsers();
+    } catch(err) {
+      setMsg("❌ Erreur: " + err.message);
+    }
+    setSaving(false);
+  };
+
+  const syncFromAuth = async () => {
+    setSaving(true); setMsg("⏳ Synchronisation...");
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/app_users`, {
+        headers: { "apikey":SUPABASE_KEY, "Authorization":`Bearer ${token}` },
       });
-      setMsg(`✅ Invitation envoyée à ${inviteEmail}`);
-      setInviteEmail(""); setInviteName(""); setInviteRole("Lecteur"); setInviteSite("");
-    } catch (err) {
+      const existing = await res.json();
+      setAppUsers(Array.isArray(existing) ? existing : []);
+      setMsg(`✅ ${existing.length} utilisateur(s) chargé(s)`);
+    } catch(err) {
       setMsg("❌ " + err.message);
     }
-    setInviting(false);
+    setSaving(false);
   };
 
-  const updateUserRole = async (userId, newRole) => {
-    await fetch(`${SUPABASE_URL}/rest/v1/app_users?id=eq.${userId}`, {
+  const updateRole = async (id, role) => {
+    await fetch(`${SUPABASE_URL}/rest/v1/app_users?id=eq.${id}`, {
       method: "PATCH",
-      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ role: newRole }),
+      headers: { "apikey":SUPABASE_KEY, "Authorization":`Bearer ${token}`, "Content-Type":"application/json" },
+      body: JSON.stringify({ role }),
     });
-    setAppUsers(appUsers.map(u => u.id === userId ? { ...u, role: newRole } : u));
+    setAppUsers(appUsers.map(u => u.id===id ? {...u, role} : u));
   };
 
-  const toggleActive = async (userId, active) => {
-    await fetch(`${SUPABASE_URL}/rest/v1/app_users?id=eq.${userId}`, {
+  const toggleActive = async (id, active) => {
+    await fetch(`${SUPABASE_URL}/rest/v1/app_users?id=eq.${id}`, {
       method: "PATCH",
-      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      headers: { "apikey":SUPABASE_KEY, "Authorization":`Bearer ${token}`, "Content-Type":"application/json" },
       body: JSON.stringify({ active }),
     });
-    setAppUsers(appUsers.map(u => u.id === userId ? { ...u, active } : u));
+    setAppUsers(appUsers.map(u => u.id===id ? {...u, active} : u));
   };
 
-  const USER_ROLES = ["Administrateur", "Gestionnaire", "Chef de site", "Comptable", "Lecteur"];
+  const deleteUser = async (id) => {
+    if (!window.confirm("Supprimer cet utilisateur de l'application ?")) return;
+    await fetch(`${SUPABASE_URL}/rest/v1/app_users?id=eq.${id}`, {
+      method: "DELETE",
+      headers: { "apikey":SUPABASE_KEY, "Authorization":`Bearer ${token}` },
+    });
+    setAppUsers(appUsers.filter(u => u.id!==id));
+  };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12 }}>
-        <StatCard icon="👥" label="Utilisateurs" value={appUsers.length} sub="comptes créés" color="#DBEAFE" />
-        <StatCard icon="✅" label="Actifs" value={appUsers.filter(u => u.active).length} color="#D1FAE5" />
-        <StatCard icon="🔐" label="Admins" value={appUsers.filter(u => u.role === "Administrateur").length} color="#FEF9C3" />
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12 }}>
+        <StatCard icon="👥" label="Utilisateurs" value={appUsers.length} sub="enregistrés" color="#DBEAFE" />
+        <StatCard icon="✅" label="Actifs" value={appUsers.filter(u=>u.active).length} color="#D1FAE5" />
+        <StatCard icon="🔐" label="Admins" value={appUsers.filter(u=>u.role==="Administrateur").length} color="#FEF9C3" />
       </div>
 
-      {/* Inviter un utilisateur */}
+      {/* Formulaire ajout/modif */}
       <Card>
-        <h3 style={sectionTitle}>➕ Inviter un membre de l'équipe</h3>
-        <div style={{ marginBottom: 10, padding: "8px 12px", background: "#EFF6FF", borderRadius: 8, fontSize: 12, fontFamily: FONT, color: "#1E40AF" }}>
-          💡 L'utilisateur recevra un email avec un lien pour créer son mot de passe et accéder à l'application.
+        <h3 style={sectionTitle}>{editingId ? "✏️ Modifier l'utilisateur" : "➕ Ajouter un membre de l'équipe"}</h3>
+        <div style={{ marginBottom:10, padding:"8px 12px", background:"#EFF6FF", borderRadius:8, fontSize:12, fontFamily:FONT, color:"#1E40AF" }}>
+          💡 L'utilisateur pourra se connecter avec l'email et le mot de passe définis ici.
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
-          <Input label="Email" type="email" value={inviteEmail} onChange={setInviteEmail} />
-          <Input label="Nom complet" value={inviteName} onChange={setInviteName} />
-          <Input label="Rôle dans l'application" value={inviteRole} onChange={setInviteRole} options={USER_ROLES} />
-          <Input label="Site affecté (optionnel)" value={inviteSite} onChange={setInviteSite} />
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
+          <Input label="Email" type="email" value={form.email} onChange={v=>setForm({...form,email:v})} />
+          <Input label="Nom complet" value={form.full_name} onChange={v=>setForm({...form,full_name:v})} />
+          <Input label="Rôle" value={form.role} onChange={v=>setForm({...form,role:v})} options={USER_ROLES} />
+          <Input label="Site affecté (optionnel)" value={form.site} onChange={v=>setForm({...form,site:v})} />
+          {!editingId && (
+            <Input label="Mot de passe initial" type="password" value={form.password} onChange={v=>setForm({...form,password:v})} />
+          )}
         </div>
         {msg && (
-          <div style={{ marginTop: 10, padding: "8px 14px", background: msg.startsWith("✅") ? "#D1FAE5" : "#FEE2E2", borderRadius: 8, fontFamily: FONT, fontSize: 13, color: msg.startsWith("✅") ? "#065F46" : C.danger }}>
+          <div style={{ marginTop:10, padding:"8px 14px", background:msg.startsWith("✅")?"#D1FAE5":msg.startsWith("⚠️")?"#FEF3C7":"#FEE2E2", borderRadius:8, fontFamily:FONT, fontSize:13, color:msg.startsWith("✅")?"#065F46":msg.startsWith("⚠️")?"#92400E":C.danger }}>
             {msg}
           </div>
         )}
-        <div style={{ marginTop: 14 }}>
-          <Btn onClick={invite} disabled={inviting}>{inviting ? "⏳ Envoi..." : "📧 Envoyer l'invitation"}</Btn>
+        <div style={{ marginTop:14, display:"flex", gap:10 }}>
+          <Btn onClick={saveUser}>{saving?"⏳...":editingId?"Enregistrer":"Ajouter l'utilisateur"}</Btn>
+          {editingId && <Btn variant="secondary" onClick={()=>{setEditingId(null);setForm({email:"",full_name:"",role:"Lecteur",site:"",password:""});}}>Annuler</Btn>}
+          <Btn variant="secondary" onClick={syncFromAuth}>🔄 Rafraîchir la liste</Btn>
         </div>
       </Card>
 
-      {/* Liste utilisateurs */}
+      {/* Liste */}
       <Card>
-        <h3 style={sectionTitle}>👥 Membres de l'équipe</h3>
+        <h3 style={sectionTitle}>👥 Membres de l'équipe ({appUsers.length})</h3>
         {loading ? (
-          <div style={{ textAlign: "center", padding: 30, color: C.muted, fontFamily: FONT }}>⏳ Chargement...</div>
+          <div style={{ textAlign:"center", padding:30, color:C.muted, fontFamily:FONT }}>⏳ Chargement...</div>
         ) : appUsers.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 30, color: C.muted, fontFamily: FONT }}>
-            Aucun utilisateur enregistré. Invitez votre équipe ci-dessus.
+          <div style={{ textAlign:"center", padding:30, fontFamily:FONT }}>
+            <div style={{ fontSize:13, color:C.muted, marginBottom:12 }}>Aucun utilisateur dans la liste.</div>
+            <div style={{ fontSize:12, color:C.muted, background:C.cream, padding:"10px 16px", borderRadius:8, textAlign:"left" }}>
+              💡 Si tu as déjà créé des utilisateurs via SQL, clique <strong>"🔄 Rafraîchir"</strong> ci-dessus, ou exécute ce SQL dans Supabase :
+              <br/><br/>
+              <code style={{ fontSize:10, background:"#F3F4F6", padding:"4px 8px", borderRadius:4, display:"block", marginTop:4 }}>
+                INSERT INTO app_users (id, email, full_name, role, active)<br/>
+                SELECT id, email, email, 'Administrateur', true FROM auth.users;
+              </code>
+            </div>
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
               <thead>
-                <tr style={{ background: C.sand }}>
-                  {["Nom","Email","Rôle","Site","Statut","Actions"].map(h => (
-                    <th key={h} style={{ padding: "9px 11px", textAlign: "left", fontWeight: 700, color: C.forest, fontFamily: FONT, fontSize: 12, whiteSpace: "nowrap" }}>{h}</th>
+                <tr style={{ background:C.sand }}>
+                  {["Nom","Email","Rôle","Site","Statut","Actions"].map(h=>(
+                    <th key={h} style={{ padding:"9px 11px", textAlign:"left", fontWeight:700, color:C.forest, fontFamily:FONT, fontSize:12, whiteSpace:"nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {appUsers.map((u, i) => (
-                  <tr key={u.id} style={{ background: i % 2 === 0 ? C.white : C.cream }}>
-                    <td style={{ ...td, fontWeight: 700 }}>{u.full_name || "—"}</td>
+                {appUsers.map((u,i)=>(
+                  <tr key={u.id} style={{ background:i%2===0?C.white:C.cream }}>
+                    <td style={{ ...td, fontWeight:700 }}>{u.full_name||"—"}</td>
                     <td style={td}>{u.email}</td>
                     <td style={td}>
-                      <select value={u.role} onChange={e => updateUserRole(u.id, e.target.value)}
-                        style={{ ...inputStyle, padding: "4px 8px", fontSize: 12, height: "auto" }}>
-                        {USER_ROLES.map(r => <option key={r}>{r}</option>)}
+                      <select value={u.role} onChange={e=>updateRole(u.id,e.target.value)}
+                        style={{ ...inputStyle, padding:"4px 8px", fontSize:12, height:"auto" }}>
+                        {USER_ROLES.map(r=><option key={r}>{r}</option>)}
                       </select>
                     </td>
-                    <td style={td}>{u.site || "—"}</td>
-                    <td style={td}><Badge color={u.active ? "green" : "amber"}>{u.active ? "Actif" : "Inactif"}</Badge></td>
+                    <td style={td}>{u.site||"—"}</td>
+                    <td style={td}><Badge color={u.active?"green":"amber"}>{u.active?"Actif":"Inactif"}</Badge></td>
                     <td style={td}>
-                      <Btn small variant={u.active ? "danger" : "secondary"}
-                        onClick={() => toggleActive(u.id, !u.active)}>
-                        {u.active ? "Désactiver" : "Réactiver"}
-                      </Btn>
+                      <div style={{ display:"flex", gap:5 }}>
+                        <Btn small variant="secondary" onClick={()=>{setForm({email:u.email,full_name:u.full_name||"",role:u.role||"Lecteur",site:u.site||"",password:""});setEditingId(u.id);}}>✏️</Btn>
+                        <Btn small variant={u.active?"danger":"secondary"} onClick={()=>toggleActive(u.id,!u.active)}>
+                          {u.active?"Désactiver":"Réactiver"}
+                        </Btn>
+                        <Btn small variant="danger" onClick={()=>deleteUser(u.id)}>🗑️</Btn>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -2869,6 +2947,7 @@ function UsersModule({ token, currentUser }) {
     </div>
   );
 }
+
 
 // ─── Helpers LocalStorage ─────────────────────────────────────────────────────
 
@@ -2899,6 +2978,9 @@ const MAPS = {
   staff:          { toDB:r=>({name:r.name,role:r.role,site:r.site,salary:r.salary,start_date:r.startDate,status:r.status,phone:r.phone||"",notes:r.notes||""}), fromDB:r=>({id:r.id,name:r.name,role:r.role,site:r.site,salary:+r.salary,startDate:r.start_date,status:r.status,phone:r.phone,notes:r.notes}) },
   temp_work:      { toDB:r=>({date:r.date,site:r.site,task:r.task,nb_workers:r.nbWorkers,nb_days:r.nbDays,daily_rate:r.dailyRate,total:r.total,notes:r.notes||""}), fromDB:r=>({id:r.id,date:r.date,site:r.site,task:r.task,nbWorkers:+r.nb_workers,nbDays:+r.nb_days,dailyRate:+r.daily_rate,total:+r.total,notes:r.notes}) },
   charges:        { toDB:r=>({date:r.date,category:r.category,label:r.label,site:r.site||"Tous",amount:r.amount,paid:r.paid||false,notes:r.notes||""}), fromDB:r=>({id:r.id,date:r.date,category:r.category,label:r.label,site:r.site,amount:+r.amount,paid:r.paid,notes:r.notes}) },
+  app_species:    { toDB:r=>({name:r.name,emoji:r.emoji||"🌳",color:r.color||"#2E5E3E",varieties:r.varieties||[]}), fromDB:r=>({id:r.id,name:r.name,emoji:r.emoji,color:r.color,varieties:Array.isArray(r.varieties)?r.varieties:[]}) },
+  app_sites:      { toDB:r=>({code:r.code,name:r.name,lat_dec:r.latDec||0,lng_dec:r.lngDec||0,notes:r.notes||""}), fromDB:r=>({id:r.id,code:r.code,name:r.name,latDec:+r.lat_dec,lngDec:+r.lng_dec,notes:r.notes}) },
+  selected_trees: { toDB:r=>({ref:r.ref,site:r.site,species:r.species,variety:r.variety,year:r.year||0,lat_dec:r.latDec||0,lng_dec:r.lngDec||0,reason:r.reason||"",notes:r.notes||"",status:r.status||"Actif"}), fromDB:r=>({id:r.id,ref:r.ref,site:r.site,species:r.species,variety:r.variety,year:r.year,latDec:+r.lat_dec,lngDec:+r.lng_dec,reason:r.reason,notes:r.notes,status:r.status}) },
 };
 
 function useSupabaseTable(tableName, lsKey, initialData) {
@@ -3535,21 +3617,37 @@ function MainApp({ authToken, currentUser, onLogout }) {
   const tempDB      = useSupabaseTable("temp_work",      "vs_temp",     initialTempWork);
   const chargesDB   = useSupabaseTable("charges",        "vs_charges",  initialCharges);
 
-  const allLoading = [treesDB,harvestsDB,salesDB,treatsDB,nurseryDB,graftingsDB,staffDB,tempDB,chargesDB].some(d=>d.loading);
-  const allSynced  = [treesDB,harvestsDB,salesDB,treatsDB,nurseryDB,graftingsDB,staffDB,tempDB,chargesDB].every(d=>d.synced);
+  const allLoading = [treesDB,harvestsDB,salesDB,treatsDB,nurseryDB,graftingsDB,staffDB,tempDB,chargesDB,speciesDB,sitesDB,selTreesDB].some(d=>d.loading);
+  const allSynced  = [treesDB,harvestsDB,salesDB,treatsDB,nurseryDB,graftingsDB,staffDB,tempDB,chargesDB,speciesDB,sitesDB,selTreesDB].every(d=>d.synced);
 
-  const [species,       setSpeciesRaw]  = useState(()=>loadLS("vs_species",      initialSpecies));
-  const [sitesList,     setSitesRaw]    = useState(()=>loadLS("vs_sites_list",   initialSitesList));
-  const [selectedTrees, setSelRaw]      = useState(()=>loadLS("vs_selected",     initialSelectedTrees));
+  const speciesDB      = useSupabaseTable("app_species",    "vs_species",   initialSpecies);
+  const sitesDB        = useSupabaseTable("app_sites",       "vs_sites_list", initialSitesList);
+  const selTreesDB     = useSupabaseTable("selected_trees",  "vs_selected",   initialSelectedTrees);
 
   const flash = () => { setSaveStatus("saved"); setTimeout(()=>setSaveStatus(""),2500); };
-  const setSpecies       = v => { setSpeciesRaw(v);  saveLS("vs_species",    v); flash(); };
-  const setSitesList     = v => { setSitesRaw(v);    saveLS("vs_sites_list", v); flash(); };
-  const setSelectedTrees = v => { setSelRaw(v);      saveLS("vs_selected",   v); flash(); };
 
-  const handleAddVariety = (speciesName, newVariety) => {
-    setSpecies(species.map(s => s.name === speciesName && !s.varieties.includes(newVariety)
-      ? { ...s, varieties: [...s.varieties, newVariety] } : s));
+  const wrapSetSimple = db => async valOrFn => {
+    const newArr = typeof valOrFn==="function"?valOrFn(db.rows):valOrFn;
+    const added   = newArr.filter(n=>!db.rows.find(o=>o.id===n.id));
+    const removed = db.rows.filter(o=>!newArr.find(n=>n.id===o.id));
+    const updated = newArr.filter(n=>{ const old=db.rows.find(o=>o.id===n.id); return old&&JSON.stringify(old)!==JSON.stringify(n); });
+    for(const r of added)   await db.add(r);
+    for(const r of removed) await db.remove(r.id);
+    for(const r of updated) await db.update(r.id,r);
+    flash();
+  };
+
+  const species       = speciesDB.rows;
+  const sitesList     = sitesDB.rows;
+  const selectedTrees = selTreesDB.rows;
+  const setSpecies       = wrapSetSimple(speciesDB);
+  const setSitesList     = wrapSetSimple(sitesDB);
+  const setSelectedTrees = wrapSetSimple(selTreesDB);
+
+  const handleAddVariety = async (speciesName, newVariety) => {
+    const updated = species.map(s => s.name === speciesName && !s.varieties.includes(newVariety)
+      ? { ...s, varieties: [...s.varieties, newVariety] } : s);
+    await setSpecies(updated);
   };
 
   const wrapSet = db => async valOrFn => {
