@@ -2964,14 +2964,14 @@ async function sbFetch(table, method="GET", body=null, filter="") {
   return res.json();
 }
 
-var DB = {
+function getDB() { return {
   list:   t     => sbFetch(t,"GET",null,"?order=created_at.asc"),
   insert: (t,r) => sbFetch(t,"POST",r),
   update: (t,id,r) => sbFetch(t,"PATCH",r,`?id=eq.${id}`),
   remove: (t,id) => sbFetch(t,"DELETE",null,`?id=eq.${id}`),
-};
+}; }
 
-var MAPS = {
+function getMaps() { return {
   trees:          { toDB:r=>({site:r.site,species:r.species,variety:r.variety,count:r.count,plant_date:r.plantDate||null,status:r.status,notes:r.notes||""}), fromDB:r=>({id:r.id,site:r.site,species:r.species,variety:r.variety,count:+r.count,plantDate:r.plant_date,status:r.status,notes:r.notes}) },
   harvests:       { toDB:r=>({date:r.date,site:r.site,species:r.species,variety:r.variety,qty:r.qty,unit:r.unit||"kg",notes:r.notes||""}), fromDB:r=>({id:r.id,date:r.date,site:r.site,species:r.species,variety:r.variety,qty:+r.qty,unit:r.unit,notes:r.notes}) },
   sales:          { toDB:r=>({date:r.date,buyer:r.buyer,species:r.species,variety:r.variety,qty:r.qty,price:r.price,paid:r.paid||false,notes:r.notes||""}), fromDB:r=>({id:r.id,date:r.date,buyer:r.buyer,species:r.species,variety:r.variety,qty:+r.qty,price:+r.price,paid:r.paid,notes:r.notes}) },
@@ -2984,33 +2984,33 @@ var MAPS = {
   app_species:    { toDB:r=>({name:r.name,emoji:r.emoji||"🌳",color:r.color||"#2E5E3E",varieties:JSON.stringify(Array.isArray(r.varieties)?r.varieties:[])}), fromDB:r=>({id:r.id,name:r.name,emoji:r.emoji,color:r.color,varieties:Array.isArray(r.varieties)?r.varieties:[]}) },
   app_sites:      { toDB:r=>({code:r.code,name:r.name,lat_dec:r.latDec||0,lng_dec:r.lngDec||0,notes:r.notes||""}), fromDB:r=>({id:r.id,code:r.code,name:r.name,latDec:+r.lat_dec,lngDec:+r.lng_dec,notes:r.notes}) },
   selected_trees: { toDB:r=>({ref:r.ref,site:r.site,species:r.species,variety:r.variety,year:r.year||0,lat_dec:r.latDec||0,lng_dec:r.lngDec||0,reason:r.reason||"",notes:r.notes||"",status:r.status||"Actif"}), fromDB:r=>({id:r.id,ref:r.ref,site:r.site,species:r.species,variety:r.variety,year:r.year,latDec:+r.lat_dec,lngDec:+r.lng_dec,reason:r.reason,notes:r.notes,status:r.status}) },
-};
+}; }
 
 function useSupabaseTable(tableName, lsKey, initialData) {
   const [rows, setRows] = useState(()=>loadLS(lsKey,initialData));
   const [synced, setSynced] = useState(false);
   const [loading, setLoading] = useState(true);
-  const map = MAPS[tableName] || { toDB: r=>r, fromDB: r=>r };
+  const map = getMaps()[tableName] || { toDB: r=>r, fromDB: r=>r };
 
   useEffect(()=>{
-    DB.list(tableName).then(data=>{
+    getDB().list(tableName).then(data=>{
       const converted = data.map(map.fromDB);
       setRows(converted); saveLS(lsKey,converted); setSynced(true); setLoading(false);
     }).catch(()=>setLoading(false));
   },[]);
 
   const add = async item => {
-    try { const [saved]=await DB.insert(tableName,map.toDB(item)); const newItem=map.fromDB(saved); setRows(prev=>{const n=[...prev,newItem];saveLS(lsKey,n);return n;}); return newItem; }
+    try { const [saved]=await getDB().insert(tableName,getMaps()[tableName].toDB(item)); const newItem=map.fromDB(saved); setRows(prev=>{const n=[...prev,newItem];saveLS(lsKey,n);return n;}); return newItem; }
     catch { const tmp={...item,id:"tmp_"+Date.now()}; setRows(prev=>{const n=[...prev,tmp];saveLS(lsKey,n);return n;}); return tmp; }
   };
 
   const update = async (id,item) => {
-    try { const [saved]=await DB.update(tableName,id,map.toDB(item)); const updated=map.fromDB(saved); setRows(prev=>{const n=prev.map(r=>r.id===id?updated:r);saveLS(lsKey,n);return n;}); }
+    try { const [saved]=await getDB().update(tableName,id,getMaps()[tableName].toDB(item)); const updated=map.fromDB(saved); setRows(prev=>{const n=prev.map(r=>r.id===id?updated:r);saveLS(lsKey,n);return n;}); }
     catch { setRows(prev=>{const n=prev.map(r=>r.id===id?{...item,id}:r);saveLS(lsKey,n);return n;}); }
   };
 
   const remove = async id => {
-    try{await DB.remove(tableName,id);}catch{}
+    try{await getDB().remove(tableName,id);}catch{}
     setRows(prev=>{const n=prev.filter(r=>r.id!==id);saveLS(lsKey,n);return n;});
   };
 
