@@ -2746,7 +2746,7 @@ function UsersModule({ token, currentUser }) {
   const USER_ROLES = ["Administrateur","Gestionnaire","Chef de site","Comptable","Lecteur"];
 
   const loadUsers = () => {
-    fetch(`${SUPABASE_URL}/rest/v1/app_users?order=created_at.desc`, {
+    sbFetch("app_users", "GET", null, "?order=created_at.desc")
       headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}` },
     }).then(r => r.json())
       .then(data => { setAppUsers(Array.isArray(data) ? data : []); setLoading(false); })
@@ -2952,11 +2952,16 @@ function UsersModule({ token, currentUser }) {
 // ─── Helpers LocalStorage ─────────────────────────────────────────────────────
 
 
+// Global auth token
+let _authToken = "";
+function setGlobalToken(t) { _authToken = t; }
+
 async function sbFetch(table, method="GET", body=null, filter="") {
   const url = `${SUPABASE_URL}/rest/v1/${table}${filter}`;
-  const headers = { "apikey":SUPABASE_KEY, "Authorization":`Bearer ${SUPABASE_KEY}`, "Content-Type":"application/json", "Prefer":method==="POST"?"return=representation":method==="PATCH"?"return=representation":"" };
+  const token = _authToken || SUPABASE_KEY;
+  const headers = { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "Prefer": method==="POST"?"return=representation":method==="PATCH"?"return=representation":"" };
   const res = await fetch(url, { method, headers, body:body?JSON.stringify(body):null });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) { const err = await res.text(); throw new Error(`${method} ${table}: ${err}`); }
   if (method==="DELETE"||res.status===204) return [];
   return res.json();
 }
@@ -2978,7 +2983,7 @@ const MAPS = {
   staff:          { toDB:r=>({name:r.name,role:r.role,site:r.site,salary:r.salary,start_date:r.startDate,status:r.status,phone:r.phone||"",notes:r.notes||""}), fromDB:r=>({id:r.id,name:r.name,role:r.role,site:r.site,salary:+r.salary,startDate:r.start_date,status:r.status,phone:r.phone,notes:r.notes}) },
   temp_work:      { toDB:r=>({date:r.date,site:r.site,task:r.task,nb_workers:r.nbWorkers,nb_days:r.nbDays,daily_rate:r.dailyRate,total:r.total,notes:r.notes||""}), fromDB:r=>({id:r.id,date:r.date,site:r.site,task:r.task,nbWorkers:+r.nb_workers,nbDays:+r.nb_days,dailyRate:+r.daily_rate,total:+r.total,notes:r.notes}) },
   charges:        { toDB:r=>({date:r.date,category:r.category,label:r.label,site:r.site||"Tous",amount:r.amount,paid:r.paid||false,notes:r.notes||""}), fromDB:r=>({id:r.id,date:r.date,category:r.category,label:r.label,site:r.site,amount:+r.amount,paid:r.paid,notes:r.notes}) },
-  app_species:    { toDB:r=>({name:r.name,emoji:r.emoji||"🌳",color:r.color||"#2E5E3E",varieties:r.varieties||[]}), fromDB:r=>({id:r.id,name:r.name,emoji:r.emoji,color:r.color,varieties:Array.isArray(r.varieties)?r.varieties:[]}) },
+  app_species:    { toDB:r=>({name:r.name,emoji:r.emoji||"🌳",color:r.color||"#2E5E3E",varieties:JSON.stringify(Array.isArray(r.varieties)?r.varieties:[])}), fromDB:r=>({id:r.id,name:r.name,emoji:r.emoji,color:r.color,varieties:Array.isArray(r.varieties)?r.varieties:[]}) },
   app_sites:      { toDB:r=>({code:r.code,name:r.name,lat_dec:r.latDec||0,lng_dec:r.lngDec||0,notes:r.notes||""}), fromDB:r=>({id:r.id,code:r.code,name:r.name,latDec:+r.lat_dec,lngDec:+r.lng_dec,notes:r.notes}) },
   selected_trees: { toDB:r=>({ref:r.ref,site:r.site,species:r.species,variety:r.variety,year:r.year||0,lat_dec:r.latDec||0,lng_dec:r.lngDec||0,reason:r.reason||"",notes:r.notes||"",status:r.status||"Actif"}), fromDB:r=>({id:r.id,ref:r.ref,site:r.site,species:r.species,variety:r.variety,year:r.year,latDec:+r.lat_dec,lngDec:+r.lng_dec,reason:r.reason,notes:r.notes,status:r.status}) },
 };
@@ -3607,6 +3612,8 @@ function MainApp({ authToken, currentUser, onLogout }) {
   const [tab, setTab]       = useState("dashboard");
   const [saveStatus, setSaveStatus] = useState("");
 
+  useEffect(() => { setGlobalToken(authToken); return () => {}; }, [authToken]);
+
   const treesDB     = useSupabaseTable("trees",          "vs_trees",    initialTrees);
   const harvestsDB  = useSupabaseTable("harvests",       "vs_harvests", initialHarvests);
   const salesDB     = useSupabaseTable("sales",          "vs_sales",    initialSales);
@@ -3765,20 +3772,24 @@ export default function App() {
       else {
         localStorage.removeItem("vs_token");
         localStorage.removeItem("vs_user");
-        setAuthToken(""); setCurrentUser(null);
+        setAuthToken(""); setCurrentUser(null); setGlobalToken("");
       }
       setAuthChecking(false);
-    }).catch(() => setAuthChecking(false));
+    }).catch(() => {
+        const cached = localStorage.getItem("vs_user");
+        if (cached) { try { setCurrentUser(JSON.parse(cached)); } catch {} }
+        setAuthChecking(false);
+      });
   }, []);
 
-  const handleLogin = (token, user) => { setAuthToken(token); setCurrentUser(user); };
+  const handleLogin = (token, user) => { setAuthToken(token); setCurrentUser(user); setGlobalToken(token); };
 
   const handleLogout = async () => {
     try { await Auth.signOut(authToken); } catch {}
     localStorage.removeItem("vs_token");
     localStorage.removeItem("vs_refresh");
     localStorage.removeItem("vs_user");
-    setAuthToken(""); setCurrentUser(null);
+    setAuthToken(""); setCurrentUser(null); setGlobalToken("");
   };
 
   if (authChecking) {
