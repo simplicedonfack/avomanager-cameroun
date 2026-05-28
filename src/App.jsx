@@ -2747,8 +2747,6 @@ function UsersModule({ token, currentUser }) {
 
   const loadUsers = () => {
     sbFetch("app_users", "GET", null, "?order=created_at.desc")
-      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${token}` },
-    }).then(r => r.json())
       .then(data => { setAppUsers(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
   };
@@ -2953,7 +2951,7 @@ function UsersModule({ token, currentUser }) {
 
 
 // Global auth token
-let _authToken = "";
+var _authToken = "";
 function setGlobalToken(t) { _authToken = t; }
 
 async function sbFetch(table, method="GET", body=null, filter="") {
@@ -2973,7 +2971,7 @@ const DB = {
   remove: (t,id) => sbFetch(t,"DELETE",null,`?id=eq.${id}`),
 };
 
-const MAPS = {
+var MAPS = {
   trees:          { toDB:r=>({site:r.site,species:r.species,variety:r.variety,count:r.count,plant_date:r.plantDate||null,status:r.status,notes:r.notes||""}), fromDB:r=>({id:r.id,site:r.site,species:r.species,variety:r.variety,count:+r.count,plantDate:r.plant_date,status:r.status,notes:r.notes}) },
   harvests:       { toDB:r=>({date:r.date,site:r.site,species:r.species,variety:r.variety,qty:r.qty,unit:r.unit||"kg",notes:r.notes||""}), fromDB:r=>({id:r.id,date:r.date,site:r.site,species:r.species,variety:r.variety,qty:+r.qty,unit:r.unit,notes:r.notes}) },
   sales:          { toDB:r=>({date:r.date,buyer:r.buyer,species:r.species,variety:r.variety,qty:r.qty,price:r.price,paid:r.paid||false,notes:r.notes||""}), fromDB:r=>({id:r.id,date:r.date,buyer:r.buyer,species:r.species,variety:r.variety,qty:+r.qty,price:+r.price,paid:r.paid,notes:r.notes}) },
