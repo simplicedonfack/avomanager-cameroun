@@ -5,8 +5,18 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const cle = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-// Si les variables manquent, on ne plante pas :
-// App affiche un panneau pédagogique qui explique quoi faire.
+// Si les variables manquent OU sont mal formées (ex. URL incomplète), on ne
+// plante pas : App affiche un panneau pédagogique qui explique quoi faire.
+// Le try/catch protège spécifiquement contre une URL invalide, qui ferait
+// sinon échouer le build en plein pré-rendu (leçon du paquet 0.1).
 // À partir du paquet 0.2, ce client sera configuré avec db: { schema: "vegesoft" }.
-export const supabase: SupabaseClient | null =
-  url && cle ? createClient(url, cle) : null;
+function creerClientSupabase(): SupabaseClient | null {
+  if (!url || !cle) return null;
+  try {
+    return createClient(url, cle);
+  } catch {
+    return null;
+  }
+}
+
+export const supabase: SupabaseClient | null = creerClientSupabase();
