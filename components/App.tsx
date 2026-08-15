@@ -1,5 +1,4 @@
 "use client";
-
 // ─── Shell d'authentification (décision D1) ───
 // App ne fait qu'une chose : savoir si quelqu'un est connecté, puis afficher
 // le bon écran. Tous les hooks de données vivront dans MainApp — jamais ici.
